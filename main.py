@@ -13,6 +13,7 @@ from requests.adapters import HTTPAdapter
 CIPHERS = ('ECDHE')
 
 # Create an adapter for our request to enable the non-standard cipher
+# From https://lukasa.co.uk/2017/02/Configuring_TLS_With_Requests/
 class CCM8Adapter(HTTPAdapter):
     """
     A TransportAdapter that re-enables ECDHE support in Requests.
