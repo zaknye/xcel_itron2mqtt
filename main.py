@@ -11,6 +11,7 @@ from requests.packages.urllib3.poolmanager import PoolManager
 from requests.adapters import HTTPAdapter
 
 IEEE_PREFIX = '{urn:ieee:std:2030.5:ns}'
+POLLING_RATE = 5
 
 # Our target cipher is: ECDHE-ECDSA-AES128-CCM8
 CIPHERS = ('ECDHE')
@@ -81,7 +82,6 @@ def probe_endpoints(session: requests.session, endpoints: list, ip_address: str)
         for k, v in point.items():
             try:
                 request_url = f'https://{ip_address}:8081{v["url"]}'
-                print(request_url)
                 response = make_meter_request(session, request_url)
             except:
                 raise ConnectionError("Failed to get response from meter")
@@ -91,7 +91,7 @@ def probe_endpoints(session: requests.session, endpoints: list, ip_address: str)
     return data
 
 def make_meter_request(session: requests.session, address: str) -> str:
-    x = session.get(address, verify=False)
+    x = session.get(address, verify=False, timeout=4.0)
     
     return x.text
 
@@ -143,6 +143,7 @@ if __name__ == '__main__':
     with open('endpoints.yaml', mode='r', encoding='utf-8') as file:
         endpoints = yaml.safe_load(file)
     while True:
+        sleep(POLLING_RATE)
         probe_results = probe_endpoints(session, endpoints, ip_address)
         print(probe_results)
 
