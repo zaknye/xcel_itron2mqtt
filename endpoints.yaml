@@ -1,0 +1,20 @@
+- Instantaneous Demand:
+    url: '/upt/1/mr/1/r'
+    tags:
+      - value
+- Current Summation Received:
+    url: '/upt/1/mr/2/rs/1/r/1'
+    tags:
+      - timePeriod:
+        - duration
+        - start
+      - touTier
+      - value
+- Current Summation Delivered:
+    url: '/upt/1/mr/3/rs/1/r/1'
+    tags:
+      - timePeriod:
+        - duration
+        - start
+      - touTier
+      - value
