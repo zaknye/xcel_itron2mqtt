@@ -67,7 +67,7 @@ class CCM8Adapter(HTTPAdapter):
         ssl_version=ssl.PROTOCOL_TLSv1_2
         context = create_urllib3_context(ssl_version=ssl_version)
         context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
+        context.verify_mode = ssl.CERT_REQUIRED
         context.set_ciphers(CIPHERS)
         kwargs['ssl_context'] = context
         return super(CCM8Adapter, self).init_poolmanager(*args, **kwargs)
@@ -76,7 +76,7 @@ class CCM8Adapter(HTTPAdapter):
         ssl_version=ssl.PROTOCOL_TLSv1_2
         context = create_urllib3_context(ssl_version=ssl_version)
         context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
+        context.verify_mode = ssl.CERT_REQUIRED
         context.set_ciphers(CIPHERS)
         kwargs['ssl_context'] = context
         return super(CCM8Adapter, self).proxy_manager_for(*args, **kwargs)
@@ -96,20 +96,6 @@ class XcelListener(ServiceListener):
         self.info = zc.get_service_info(type_, name)
         print(f"Service {name} added, service info: {self.info}")
 
-def probe_endpoints(session: requests.session, endpoints: list, ip_address: str) -> dict:
-    data = {}
-    for point in endpoints:
-        for k, v in point.items():
-            try:
-                request_url = f'https://{ip_address}:8081{v["url"]}'
-                response = make_meter_request(session, request_url)
-            except:
-                raise ConnectionError("Failed to get response from meter")
-            parsed_data = parse_response(response, v['tags'])
-            data[k] = parsed_data
-    
-    return data
-
 def setup_session(creds: tuple, ip_address: str) -> requests.session:
     session = requests.session()
     session.cert = creds
@@ -122,11 +108,13 @@ def look_for_creds() -> tuple:
     # Find if the cred paths are on PATH
     cert = os.getenv('CERT_PATH')
     key = os.getenv('KEY_PATH')
+    cert_path = Path('cert.pem')
+    key_path = Path('key.pem')
     if cert and key:
         return cert, key
     # If not, look in the local directory
-    elif Path('cert.pem').is_file() and Path('key.pem').is_file():
-        return (Path('cert.pem'), Path('key.pem'))
+    elif cert_path.is_file() and key_path.is_file():
+        return (cert_path, key_path)
     else:
         raise FileNotFoundError('Could not find cert and key credentials')
 

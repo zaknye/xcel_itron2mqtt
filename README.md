@@ -6,6 +6,13 @@ Recently Xcel energy rolled out smart meter installations to facilitate TOU(Time
 
 Enroll in Xcel enery launchpad and get your meter joined to your network.\
 Generate an SSL key to use to provide a handshake to your meter, and add this to your Xcel launchpad 
+```
+./scripts/generate_keys.sh
+```
+This script will generate new keys and print out the LFDI string to use for registering with Xcel. If you're already generated keys and you need to retrieve the LFDI string again run:
+```
+./scripts/generate_keys.sh -p
+```
 
 ## Docker
 
@@ -19,9 +26,9 @@ Run the container. The easiest way currently to pass through mDNS to the contain
 ```
 docker run --rm \
     --net host \
-    -e CERT_PATH=/path/to/certfile \
-    -e KEYPATH=/path/to/certfile \
-    -v /path/to/persistent/data:/data \
+    -e CERT_PATH=</path/to/certfile> \
+    -e KEYPATH=</path/to/certfile> \
+    -v <path_to_cert_folder>:/certs \
     xcel_itron2mqtt:latest
 ```
 
