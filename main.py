@@ -16,6 +16,46 @@ POLLING_RATE = 5
 # Our target cipher is: ECDHE-ECDSA-AES128-CCM8
 CIPHERS = ('ECDHE')
 
+class XcelQuery():
+    def __init__(self, session: requests.session, url: str, name: str, 
+                    tags: list, poll_rate = 5.0):
+        self.requests_session = session
+        self.current_response = None
+        self.tags = tags
+        self.url = url
+        self.poll_rate = poll_rate
+        
+    def query_endpoint(self) -> str:
+        x = self.requests_session.get(self.url, verify=False, timeout=4.0)
+    
+        return x.text
+
+    def parse_response(self, response: str, tags: list) -> dict:
+        readings_dict = {}
+        root = ET.fromstring(response)
+        for tag in tags:
+            if not isinstance(tag, dict):
+                search_val = f'{IEEE_PREFIX}{tag}'
+                value = root.find(f'.//{IEEE_PREFIX}{tag}').text
+                readings_dict[tag] = value
+            else:
+                # A lot of assumptions on the format of the endpoints YAML
+                for k, v in tag.items():
+                    for val in v:
+                        if k not in readings_dict.keys():
+                            readings_dict[k] = {}
+                        search_val = f'{IEEE_PREFIX}{val}'
+                        value = root.find(f'.//{IEEE_PREFIX}{val}').text
+                        readings_dict[k][val] = value
+    
+        return readings_dict
+
+    def get_reading(self) -> str:
+        response = self.query_endpoint()
+        self.current_response = self.parse_response(response, self.tags)
+        
+        return self.current_response
+
 # Create an adapter for our request to enable the non-standard cipher
 # From https://lukasa.co.uk/2017/02/Configuring_TLS_With_Requests/
 class CCM8Adapter(HTTPAdapter):
@@ -56,26 +96,6 @@ class XcelListener(ServiceListener):
         self.info = zc.get_service_info(type_, name)
         print(f"Service {name} added, service info: {self.info}")
 
-def parse_response(response: str, tags: list) -> dict:
-    readings_dict = {}
-    root = ET.fromstring(response)
-    for tag in tags:
-        if not isinstance(tag, dict):
-            search_val = f'{IEEE_PREFIX}{tag}'
-            value = root.find(f'.//{IEEE_PREFIX}{tag}').text
-            readings_dict[tag] = value
-        else:
-            # A lot of assumptions on the format of the endpoints YAML
-            for k, v in tag.items():
-                for val in v:
-                    if k not in readings_dict.keys():
-                        readings_dict[k] = {}
-                    search_val = f'{IEEE_PREFIX}{val}'
-                    value = root.find(f'.//{IEEE_PREFIX}{val}').text
-                    readings_dict[k][val] = value
-    
-    return readings_dict
-
 def probe_endpoints(session: requests.session, endpoints: list, ip_address: str) -> dict:
     data = {}
     for point in endpoints:
@@ -89,11 +109,6 @@ def probe_endpoints(session: requests.session, endpoints: list, ip_address: str)
             data[k] = parsed_data
     
     return data
-
-def make_meter_request(session: requests.session, address: str) -> str:
-    x = session.get(address, verify=False, timeout=4.0)
-    
-    return x.text
 
 def setup_session(creds: tuple, ip_address: str) -> requests.session:
     session = requests.session()
@@ -137,14 +152,21 @@ def mDNS_search_for_meter() -> str:
     return ip_address
 
 if __name__ == '__main__':
+
     ip_address = mDNS_search_for_meter()
     creds = look_for_creds()
     session = setup_session(creds, ip_address)
+    # Read in the API structure for a dictionary of endpoints and XML structure
     with open('endpoints.yaml', mode='r', encoding='utf-8') as file:
         endpoints = yaml.safe_load(file)
+    # Build query objects for each endpoint
+    query_obj = []
+    for point in endpoints:
+        for endpoint_name, v in point.items():
+            request_url = f'https://{ip_address}:8081{v["url"]}'
+            query_obj.append(XcelQuery(session, request_url, endpoint_name, v['tags']))
     while True:
         sleep(POLLING_RATE)
-        probe_results = probe_endpoints(session, endpoints, ip_address)
-        print(probe_results)
-
-    #endpoints = find_endpoints(session, ip_address)
+        for obj in query_obj:
+            reading = obj.get_reading()
+            print(reading)
