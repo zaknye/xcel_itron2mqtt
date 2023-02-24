@@ -55,54 +55,6 @@ class XcelListener(ServiceListener):
         self.info = zc.get_service_info(type_, name)
         print(f"Service {name} added, service info: {self.info}")
 
-def find_endpoints(session: requests.session, ip_address: str) -> dict:
-    prefix = 'https://'
-    port = ':8081'
-    suffix = "/upt/"
-    request_url = f"{prefix}{ip_address}{port}{suffix}"
-    initial_response = make_meter_request(session, request_url)
-    print("Initial response!")
-    print(initial_response)
-    # Parse incoming XML
-    root = ET.fromstring(initial_response)
-    # Check to make sure we have the XML entries we're looking for
-    if root.tag == f'{IEEE_PREFIX}UsagePointList' and isinstance(root.attrib, dict):
-        pass
-    else:
-        raise KeyError('UsagePoint key not found!')
-
-    poll_rate = root.attrib['pollRate']
-
-    reading_link = root.find(f'.//{IEEE_PREFIX}MeterReadingListLink')
-    
-    print(reading_link)
-    try:
-        suffix = reading_link.attrib['href']
-        num_readings = reading_link.attrib['all']
-        print(suffix)
-    except:
-        raise KeyError('MeterReadingListLink tag not found!')
-    
-    # Cycle through all the readings, and find their endpoints
-    for num in num_readings:    
-        request_url = f"{prefix}{ip_address}{port}{suffix}"
-        print(f"New request URL {request_url}")
-        response = make_meter_request(session, request_url)
-        root = ET.fromstring(response)
-        reading_link = root.find(f'.//{IEEE_PREFIX}MeterReading')
-        try:
-            suffix = reading_link.attrib['href']
-            print(suffix)
-        except:
-            raise KeyError('MeterReading tag not found!')
-    request_url = f"{prefix}{ip_address}{port}{suffix}"
-    print(f"New request URL {request_url}")
-    response = make_meter_request(session, request_url)
-
-    print(response)
-
-    return asd
-
 def parse_response(response: str, tags: list) -> dict:
     readings_dict = {}
     root = ET.fromstring(response)
