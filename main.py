@@ -2,6 +2,7 @@ import os
 import ssl
 import yaml
 import requests
+import paho.mqtt.client as mqtt
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from time import sleep
@@ -11,6 +12,7 @@ from requests.packages.urllib3.poolmanager import PoolManager
 from requests.adapters import HTTPAdapter
 
 IEEE_PREFIX = '{urn:ieee:std:2030.5:ns}'
+MQTT_TOPIC = 'xcel_itron2mqtt/meter_reading/'
 POLLING_RATE = 5
 
 # Our target cipher is: ECDHE-ECDSA-AES128-CCM8
@@ -18,11 +20,13 @@ CIPHERS = ('ECDHE')
 
 class XcelQuery():
     def __init__(self, session: requests.session, url: str, name: str, 
-                    tags: list, poll_rate = 5.0):
+                    tags: list, mqtt_client: mqtt.Client, poll_rate = 5.0):
         self.requests_session = session
-        self.current_response = None
-        self.tags = tags
         self.url = url
+        self.name = name
+        self.tags = tags
+        self.client = mqtt_client
+        self.current_response = None
         self.poll_rate = poll_rate
         
     def query_endpoint(self) -> str:
@@ -55,6 +59,15 @@ class XcelQuery():
         self.current_response = self.parse_response(response, self.tags)
         
         return self.current_response
+    
+    def mqtt_create_message() -> str:
+        return
+
+    def mqtt_publish(messsage: str) -> int:
+        result = client.publish(topic, message)
+        
+        # Return status of the published message
+        return result[0]
 
 # Create an adapter for our request to enable the non-standard cipher
 # From https://lukasa.co.uk/2017/02/Configuring_TLS_With_Requests/
@@ -95,6 +108,33 @@ class XcelListener(ServiceListener):
     def add_service(self, zc: Zeroconf, type_: str, name: str) -> None:
         self.info = zc.get_service_info(type_, name)
         print(f"Service {name} added, service info: {self.info}")
+
+# Setup MQTT client that will be shared with each XcelQuery object
+def setup_mqtt() -> mqtt.Client:
+    
+    def on_connect(client, userdata, flags, rc):
+        if rc == 0:
+            print("Connected to MQTT Broker!")
+        else:
+            print("Failed to connect, return code %d\n", rc)
+
+    mqtt_server_address = os.getenv('MQTT_SERVER')
+    env_port = os.getenv('MQTT_SERVER')
+    # If environment variable for MQTT port is set, use that
+    # if not, use the default
+    mqtt_port = env_port if env_port else 1883
+    # Check if a username/PW is setup for the MQTT connection
+    mqtt_username = os.getenv('MQTT_USER')
+    mqtt_password = os.getenv('MQTT_PASSWORD')
+    if mqtt_username and mqtt_password:
+        client.username_pw_set(mqtt_username, mqtt_password)
+    client = mqtt.Client()
+    client.on_connect = on_connect
+    client.connect(mqtt_server_address, mqtt_port)
+    client.loop_start()
+
+    return client
+
 
 def setup_session(creds: tuple, ip_address: str) -> requests.session:
     session = requests.session()
