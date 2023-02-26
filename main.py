@@ -20,12 +20,12 @@ CIPHERS = ('ECDHE')
 
 class XcelQuery():
     def __init__(self, session: requests.session, url: str, name: str, 
-                    tags: list, mqtt_client: mqtt.Client, poll_rate = 5.0):
+                    tags: list, poll_rate = 5.0):
         self.requests_session = session
         self.url = url
         self.name = name
         self.tags = tags
-        self.client = mqtt_client
+        #self.client = mqtt_client
         self.current_response = None
         self.poll_rate = poll_rate
         
@@ -34,32 +34,60 @@ class XcelQuery():
     
         return x.text
 
-    def parse_response(self, response: str, tags: list) -> dict:
+    def parse_response(self, response: str, tags: dict) -> dict:
         readings_dict = {}
         root = ET.fromstring(response)
-        for tag in tags:
-            if not isinstance(tag, dict):
-                search_val = f'{IEEE_PREFIX}{tag}'
-                value = root.find(f'.//{IEEE_PREFIX}{tag}').text
-                readings_dict[tag] = value
-            else:
-                # A lot of assumptions on the format of the endpoints YAML
-                for k, v in tag.items():
-                    for val in v:
-                        if k not in readings_dict.keys():
+        # A lot of assumptions on the format of the endpoints YAML
+        # Kinda gross
+        for k, v in tags.items():
+            if isinstance(v, list):
+                for val_items in v:
+                    for k2, v2 in val_items.items():
+                        if k2 not in readings_dict.keys():
                             readings_dict[k] = {}
-                        search_val = f'{IEEE_PREFIX}{val}'
-                        value = root.find(f'.//{IEEE_PREFIX}{val}').text
-                        readings_dict[k][val] = value
+                        search_val = f'{IEEE_PREFIX}{k2}'
+                        value = root.find(f'.//{search_val}').text
+                        readings_dict[k][k2] = value
+            else:
+                search_val = f'{IEEE_PREFIX}{k}'
+                value = root.find(f'.//{IEEE_PREFIX}{k}').text
+                readings_dict[k] = value
     
         return readings_dict
 
     def get_reading(self) -> str:
         response = self.query_endpoint()
         self.current_response = self.parse_response(response, self.tags)
-        
+
         return self.current_response
     
+    def mqtt_send_config() -> None:
+        """
+        Homeassistant requires a config payload to be sent to more
+        easily setup the sensor/device once it appears over mqtt
+        https://www.home-assistant.io/integrations/mqtt/
+        """
+        mqtt_topic_prefix = 'homeassistant/'
+        payload = { "device_class": "temperature", 
+                "name": "Temperature", 
+                "state_topic": "homeassistant/sensor/sensorBedroom/state", 
+                "unit_of_measurement": "°C"
+                }
+        payload = {}
+        for k, v in tags.items():
+            if isinstance(v, list):
+                for val_items in v:
+                    for k2, v2 in val_items.items():
+                        if k2 not in readings_dict.keys():
+                            readings_dict[k] = {}
+                        search_val = f'{IEEE_PREFIX}{k2}'
+                        value = root.find(f'.//{search_val}').text
+                        readings_dict[k][k2] = value
+            else:
+                search_val = f'{IEEE_PREFIX}{k}'
+                value = root.find(f'.//{IEEE_PREFIX}{k}').text
+                readings_dict[k] = value
+
     def mqtt_create_message() -> str:
         return
 
@@ -135,7 +163,6 @@ def setup_mqtt() -> mqtt.Client:
 
     return client
 
-
 def setup_session(creds: tuple, ip_address: str) -> requests.session:
     session = requests.session()
     session.cert = creds
@@ -184,14 +211,18 @@ if __name__ == '__main__':
     ip_address = mDNS_search_for_meter()
     creds = look_for_creds()
     session = setup_session(creds, ip_address)
+    #mqtt_client = setup_mqtt()
     # Read in the API structure for a dictionary of endpoints and XML structure
     with open('endpoints.yaml', mode='r', encoding='utf-8') as file:
         endpoints = yaml.safe_load(file)
     # Build query objects for each endpoint
     query_obj = []
+    print(endpoints)
+    input()
     for point in endpoints:
         for endpoint_name, v in point.items():
             request_url = f'https://{ip_address}:8081{v["url"]}'
+            #query_obj.append(XcelQuery(session, request_url, endpoint_name, v['tags'], mqtt_client))
             query_obj.append(XcelQuery(session, request_url, endpoint_name, v['tags']))
     while True:
         sleep(POLLING_RATE)
