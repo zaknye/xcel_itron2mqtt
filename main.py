@@ -1,6 +1,7 @@
 import os
 import ssl
 import yaml
+from copy import deepcopy
 import requests
 import paho.mqtt.client as mqtt
 import xml.etree.ElementTree as ET
@@ -37,13 +38,12 @@ class XcelQuery():
     def parse_response(self, response: str, tags: dict) -> dict:
         readings_dict = {}
         root = ET.fromstring(response)
-        # A lot of assumptions on the format of the endpoints YAML
         # Kinda gross
         for k, v in tags.items():
             if isinstance(v, list):
                 for val_items in v:
                     for k2, v2 in val_items.items():
-                        if k2 not in readings_dict.keys():
+                        if not readings_dict.keys():
                             readings_dict[k] = {}
                         search_val = f'{IEEE_PREFIX}{k2}'
                         value = root.find(f'.//{search_val}').text
@@ -60,34 +60,37 @@ class XcelQuery():
         self.current_response = self.parse_response(response, self.tags)
 
         return self.current_response
-    
-    def mqtt_send_config() -> None:
+
+    def mqtt_send_config(self) -> None:
         """
         Homeassistant requires a config payload to be sent to more
         easily setup the sensor/device once it appears over mqtt
         https://www.home-assistant.io/integrations/mqtt/
         """
         mqtt_topic_prefix = 'homeassistant/'
-        payload = { "device_class": "temperature", 
-                "name": "Temperature", 
-                "state_topic": "homeassistant/sensor/sensorBedroom/state", 
-                "unit_of_measurement": "°C"
-                }
-        payload = {}
-        for k, v in tags.items():
+        _tags = deepcopy(self.tags)
+        for k, v in _tags.items():
+            print(f"V:\t{v}")
             if isinstance(v, list):
                 for val_items in v:
-                    for k2, v2 in val_items.items():
-                        if k2 not in readings_dict.keys():
-                            readings_dict[k] = {}
-                        search_val = f'{IEEE_PREFIX}{k2}'
-                        value = root.find(f'.//{search_val}').text
-                        readings_dict[k][k2] = value
-            else:
-                search_val = f'{IEEE_PREFIX}{k}'
-                value = root.find(f'.//{IEEE_PREFIX}{k}').text
-                readings_dict[k] = value
-
+                    payload = {}
+                    name, payload = val_items.popitem()
+                    entity_type = payload.pop('entity_type')
+                    name_suffix = f'{k[0].upper()}{name[0].upper()}'
+                    payload['state_topic'] = f'{mqtt_topic_prefix}{entity_type}/{self.name}/state'
+                    mqtt_topic = f'{mqtt_topic_prefix}{entity_type}/{self.name}{name_suffix}/config'
+                    print(f"Sending to MQTT TOPIC:\t{mqtt_topic}")
+                    print(f"Payload:\t\t{payload}")
+                    # Send MQTT payload
+            elif v.values():
+                payload = deepcopy(v)
+                name_suffix = f'{k[0].upper()}'
+                entity_type = payload.pop('entity_type')
+                payload['state_topic'] = f'{mqtt_topic_prefix}{entity_type}/{self.name}/state'
+                mqtt_topic = f'{mqtt_topic_prefix}{entity_type}/{self.name}{name_suffix}/config'
+                print(f"Sending to MQTT TOPIC:\t{mqtt_topic}")
+                print(f"Payload:\t\t{payload}")
+    
     def mqtt_create_message() -> str:
         return
 
@@ -217,13 +220,16 @@ if __name__ == '__main__':
         endpoints = yaml.safe_load(file)
     # Build query objects for each endpoint
     query_obj = []
-    print(endpoints)
-    input()
     for point in endpoints:
         for endpoint_name, v in point.items():
             request_url = f'https://{ip_address}:8081{v["url"]}'
             #query_obj.append(XcelQuery(session, request_url, endpoint_name, v['tags'], mqtt_client))
             query_obj.append(XcelQuery(session, request_url, endpoint_name, v['tags']))
+    # Send MQTT config setup to Home assistant
+    for obj in query_obj:
+        obj.mqtt_send_config()
+        input()
+
     while True:
         sleep(POLLING_RATE)
         for obj in query_obj:
