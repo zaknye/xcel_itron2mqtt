@@ -20,6 +20,11 @@ POLLING_RATE = 5
 CIPHERS = ('ECDHE')
 
 class XcelQuery():
+    """
+    Class wrapper for all readings associated with the Xcel meter.
+    Expects a request session that should be shared amongst the 
+    instances.
+    """
     def __init__(self, session: requests.session, url: str, name: str, 
                     tags: list, poll_rate = 5.0):
         self.requests_session = session
@@ -27,15 +32,30 @@ class XcelQuery():
         self.name = name
         self.tags = tags
         #self.client = mqtt_client
-        self.current_response = None
         self.poll_rate = poll_rate
+
+        self._mqtt_topic_prefix = 'homeassistant/'
+        self._current_response = None
         
     def query_endpoint(self) -> str:
+        """
+        Sends a request to the given endpoint associated with the 
+        object instance
+
+        Returns: str in XML format of the meter's response
+        """
         x = self.requests_session.get(self.url, verify=False, timeout=4.0)
     
         return x.text
 
     def parse_response(self, response: str, tags: dict) -> dict:
+        """
+        Drill down the XML response from the meter and extract the
+        readings according to the endpoints.yaml structure.
+
+        Returns: dict in the nesting structure of found below each tag
+        in the endpoints.yaml
+        """
         readings_dict = {}
         root = ET.fromstring(response)
         # Kinda gross
@@ -55,11 +75,33 @@ class XcelQuery():
     
         return readings_dict
 
-    def get_reading(self) -> str:
+    def get_reading(self) -> dict:
+        """
+        Query the endpoint associated with the object instance and
+        return the parsed XML response in the form of a dictionary
+        
+        Returns: Dict in the form of {reading: value}
+        """
         response = self.query_endpoint()
         self.current_response = self.parse_response(response, self.tags)
 
         return self.current_response
+
+    def create_config(self, sensor_name: str, name_suffix: str, details: dict) -> tuple[str, dict]:
+        """
+        Helper to generate the JSON sonfig payload for setting
+        up the new Homeassistant entities
+
+        Returns: Tuple consisting of a string representing the mqtt
+        topic, and a dict to be used as the payload.
+        """
+        payload = deepcopy(details)
+        entity_type = payload.pop('entity_type')
+        payload['state_topic'] = f'{self._mqtt_topic_prefix}{entity_type}/{self.name}/state'
+        payload['value_template'] = f"{{{{ value_template.{sensor_name} }}}}"
+        mqtt_topic = f'{self._mqtt_topic_prefix}{entity_type}/{self.name}{name_suffix}/config'
+
+        return mqtt_topic, payload
 
     def mqtt_send_config(self) -> None:
         """
@@ -67,34 +109,33 @@ class XcelQuery():
         easily setup the sensor/device once it appears over mqtt
         https://www.home-assistant.io/integrations/mqtt/
         """
-        mqtt_topic_prefix = 'homeassistant/'
         _tags = deepcopy(self.tags)
         for k, v in _tags.items():
-            print(f"V:\t{v}")
             if isinstance(v, list):
                 for val_items in v:
-                    payload = {}
-                    name, payload = val_items.popitem()
-                    entity_type = payload.pop('entity_type')
+                    name, details = val_items.popitem()
                     name_suffix = f'{k[0].upper()}{name[0].upper()}'
-                    payload['state_topic'] = f'{mqtt_topic_prefix}{entity_type}/{self.name}/state'
-                    mqtt_topic = f'{mqtt_topic_prefix}{entity_type}/{self.name}{name_suffix}/config'
+                    sensor_name = f'{k}{name}'
+                    mqtt_topic, payload = self.create_config(sensor_name, name_suffix, details)
                     print(f"Sending to MQTT TOPIC:\t{mqtt_topic}")
                     print(f"Payload:\t\t{payload}")
                     # Send MQTT payload
-            elif v.values():
-                payload = deepcopy(v)
+            else:
                 name_suffix = f'{k[0].upper()}'
-                entity_type = payload.pop('entity_type')
-                payload['state_topic'] = f'{mqtt_topic_prefix}{entity_type}/{self.name}/state'
-                mqtt_topic = f'{mqtt_topic_prefix}{entity_type}/{self.name}{name_suffix}/config'
+                mqtt_topic, payload = self.create_config(k, name_suffix, v)
                 print(f"Sending to MQTT TOPIC:\t{mqtt_topic}")
                 print(f"Payload:\t\t{payload}")
     
     def mqtt_create_message() -> str:
+
         return
 
     def mqtt_publish(messsage: str) -> int:
+        """
+        Publish the given message to the topic associated with the class
+       
+        Returns status integer
+        """
         result = client.publish(topic, message)
         
         # Return status of the published message
@@ -142,6 +183,12 @@ class XcelListener(ServiceListener):
 
 # Setup MQTT client that will be shared with each XcelQuery object
 def setup_mqtt() -> mqtt.Client:
+    """
+    Creates a new mqtt client to be used for the the xcelQuery
+    objects.
+
+    Returns: mqtt.Client object
+    """
     
     def on_connect(client, userdata, flags, rc):
         if rc == 0:
@@ -167,6 +214,12 @@ def setup_mqtt() -> mqtt.Client:
     return client
 
 def setup_session(creds: tuple, ip_address: str) -> requests.session:
+    """
+    Creates a new requests session with the given credentials pointed
+    at the give IP address. Will be shared across each xcelQuery object.
+
+    Returns: request.session
+    """
     session = requests.session()
     session.cert = creds
     # Mount our adapter to the domain
@@ -175,6 +228,13 @@ def setup_session(creds: tuple, ip_address: str) -> requests.session:
     return session
 
 def look_for_creds() -> tuple:
+    """
+    Defaults to extracting the cert and key path from environment variables,
+    but if those don't exist it tries to find the hidden credentials files 
+    in the default folder of /certs.
+
+    Returns: tuple of paths for cert and key files
+    """
     # Find if the cred paths are on PATH
     cert = os.getenv('CERT_PATH')
     key = os.getenv('KEY_PATH')
@@ -189,6 +249,12 @@ def look_for_creds() -> tuple:
         raise FileNotFoundError('Could not find cert and key credentials')
 
 def mDNS_search_for_meter() -> str:
+    """
+    Creates a new zeroconf instance to probe the network for the meter
+    to extract its ip address and port. Closes the instance down when complete.
+
+    Returns: string, ip address of the meter
+    """
     # create a zeroconf object and listener to query mDNS for the meter
     zeroconf = Zeroconf()
     listener = XcelListener()
@@ -225,6 +291,7 @@ if __name__ == '__main__':
             request_url = f'https://{ip_address}:8081{v["url"]}'
             #query_obj.append(XcelQuery(session, request_url, endpoint_name, v['tags'], mqtt_client))
             query_obj.append(XcelQuery(session, request_url, endpoint_name, v['tags']))
+    
     # Send MQTT config setup to Home assistant
     for obj in query_obj:
         obj.mqtt_send_config()
