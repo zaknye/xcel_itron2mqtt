@@ -3,7 +3,6 @@ import ssl
 import yaml
 import requests
 import paho.mqtt.client as mqtt
-import xml.etree.ElementTree as ET
 from time import sleep
 from pathlib import Path
 from xcelEndpoint import xcelEndpoint
@@ -12,8 +11,6 @@ from requests.packages.urllib3.util.ssl_ import create_urllib3_context
 from requests.packages.urllib3.poolmanager import PoolManager
 from requests.adapters import HTTPAdapter
 
-# Prefix that appears on all of the XML elements
-IEEE_PREFIX = '{urn:ieee:std:2030.5:ns}'
 POLLING_RATE = 5
 # Our target cipher is: ECDHE-ECDSA-AES128-CCM8
 CIPHERS = ('ECDHE')
@@ -83,6 +80,7 @@ def setup_mqtt() -> mqtt.Client:
     mqtt_password = os.getenv('MQTT_PASSWORD')
     if mqtt_username and mqtt_password:
         client.username_pw_set(mqtt_username, mqtt_password)
+    # If no env variable was set, skip setting creds?
     client = mqtt.Client()
     client.on_connect = on_connect
     client.connect(mqtt_server_address, mqtt_port)
@@ -174,7 +172,8 @@ if __name__ == '__main__':
         input()
 
     while True:
-        sleep(POLLING_RATE)
+        sleep(5)
         for obj in query_obj:
             reading = obj.get_reading()
+            obj.process_send_mqtt(reading)
             print(reading)

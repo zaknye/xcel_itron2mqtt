@@ -1,11 +1,11 @@
-- Instantaneous Demand:
+- Instantaneous-Demand:
     url: '/upt/1/mr/1/r'
     tags:
       value:
         entity_type: sensor
         device_class: power
         unit_of_measurement: W
-- Current Summation Received:
+- Current-Summation-Received:
     url: '/upt/1/mr/2/rs/1/r/1'
     tags:
       timePeriod:
@@ -23,7 +23,7 @@
         entity_type: sensor
         device_class: energy
         unit_of_measurement: Wh
-- Current Summation Delivered:
+- Current-Summation-Delivered:
     url: '/upt/1/mr/3/rs/1/r/1'
     tags:
       timePeriod:
@@ -36,7 +36,7 @@
             device_class: timestamp
             unit_of_measurement: datetime
       touTier:
-        entity_type: number
+        entity_type: sensor
       value:
         entity_type: sensor
         device_class: energy
