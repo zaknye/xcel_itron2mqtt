@@ -13,13 +13,13 @@ class xcelEndpoint():
     Expects a request session that should be shared amongst the 
     instances.
     """
-    def __init__(self, session: requests.session, url: str, name: str, 
-                    tags: list, poll_rate = 5.0):
+    def __init__(self, session: requests.session, mqtt_client: mqtt.Client, 
+                    url: str, name: str, tags: list, poll_rate = 5.0):
         self.requests_session = session
         self.url = url
         self.name = name
         self.tags = tags
-        #self.client = mqtt_client
+        self.client = mqtt_client
         self.poll_rate = poll_rate
 
         self._mqtt_topic_prefix = 'homeassistant/'
@@ -87,6 +87,7 @@ class xcelEndpoint():
         entity_type = payload.pop('entity_type')
         payload['state_topic'] = f'{self._mqtt_topic_prefix}{entity_type}/{self.name}/state'
         payload['value_template'] = f"{{{{ value_template.{sensor_name} }}}}"
+        payload['name'] = sensor_name
         mqtt_topic = f'{self._mqtt_topic_prefix}{entity_type}/{self.name}{name_suffix}/config'
         # Capture the state topic the sensor is associated with for later use
         self._entity_type_lookup[sensor_name] = payload['state_topic']
@@ -107,16 +108,12 @@ class xcelEndpoint():
                     name_suffix = f'{k[0].upper()}{name[0].upper()}'
                     sensor_name = f'{k}{name}'
                     mqtt_topic, payload = self.create_config(sensor_name, name_suffix, details)
-                    print(f"Sending to MQTT TOPIC:\t{mqtt_topic}")
-                    print(f"Payload:\t\t{payload}")
                     # Send MQTT payload
-                    self.mqtt_publish(mqtt_topic, payload)
+                    self.mqtt_publish(mqtt_topic, str(payload))
             else:
                 name_suffix = f'{k[0].upper()}'
                 mqtt_topic, payload = self.create_config(k, name_suffix, v)
-                print(f"Sending to MQTT TOPIC:\t{mqtt_topic}")
-                print(f"Payload:\t\t{payload}")
-                self.mqtt_publish(mqtt_topic, payload)
+                self.mqtt_publish(mqtt_topic, str(payload))
 
     def process_send_mqtt(self, reading: dict) -> None:
         """
@@ -135,19 +132,19 @@ class xcelEndpoint():
 
         # Cycle through and send the payload to the associated keys
         for topic, payload in mqtt_topic_message.items():
-            print(f'Sending to MQTT Topic: {topic}\tPayload: {payload}')
-            self.mqtt_publish(topic, payload)
+            self.mqtt_publish(topic, str(payload))
 
-    def mqtt_publish(topic: str, messsage: str) -> int:
+    def mqtt_publish(self, topic: str, message: str) -> int:
         """
         Publish the given message to the topic associated with the class
        
         Returns status integer
         """
-        try:
-            result = client.publish(topic, message)
-        except:
-            print('Error in sending MQTT payload')
+        result = [0]
+        print(f"Sending to MQTT TOPIC:\t{topic}")
+        print(f"Payload:\t\t{message}")
+        result = self.client.publish(topic, message)
+        #print('Error in sending MQTT payload')
             
         # Return status of the published message
         return result[0]

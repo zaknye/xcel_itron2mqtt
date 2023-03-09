@@ -71,7 +71,7 @@ def setup_mqtt() -> mqtt.Client:
             print("Failed to connect, return code %d\n", rc)
 
     mqtt_server_address = os.getenv('MQTT_SERVER')
-    env_port = os.getenv('MQTT_SERVER')
+    env_port = int(os.getenv('MQTT_PORT'))
     # If environment variable for MQTT port is set, use that
     # if not, use the default
     mqtt_port = env_port if env_port else 1883
@@ -154,7 +154,7 @@ if __name__ == '__main__':
     ip_address = mDNS_search_for_meter()
     creds = look_for_creds()
     session = setup_session(creds, ip_address)
-    #mqtt_client = setup_mqtt()
+    mqtt_client = setup_mqtt()
     # Read in the API structure for a dictionary of endpoints and XML structure
     with open('endpoints.yaml', mode='r', encoding='utf-8') as file:
         endpoints = yaml.safe_load(file)
@@ -163,8 +163,7 @@ if __name__ == '__main__':
     for point in endpoints:
         for endpoint_name, v in point.items():
             request_url = f'https://{ip_address}:8081{v["url"]}'
-            #query_obj.append(XcelQuery(session, request_url, endpoint_name, v['tags'], mqtt_client))
-            query_obj.append(xcelEndpoint(session, request_url, endpoint_name, v['tags']))
+            query_obj.append(xcelEndpoint(session, mqtt_client, request_url, endpoint_name, v['tags']))
     
     # Send MQTT config setup to Home assistant
     for obj in query_obj:
