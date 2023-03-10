@@ -3,8 +3,9 @@ import ssl
 import yaml
 import requests
 import paho.mqtt.client as mqtt
-from typing import Tuple
+import xml.etree.ElementTree as ET
 from time import sleep
+from typing import Tuple
 from requests.packages.urllib3.util.ssl_ import create_urllib3_context
 from requests.packages.urllib3.poolmanager import PoolManager
 from requests.adapters import HTTPAdapter
@@ -12,6 +13,7 @@ from requests.adapters import HTTPAdapter
 # Local imports
 from xcelEndpoint import xcelEndpoint
 
+IEEE_PREFIX = '{urn:ieee:std:2030.5:ns}'
 # Our target cipher is: ECDHE-ECDSA-AES128-CCM8
 CIPHERS = ('ECDHE')
 
@@ -46,9 +48,6 @@ class xcelMeter():
         self.name = name
         # Base URL used to query the meter
         self.url = f'https://{ip_address}:{port}'
-        self._mfid = None
-        self._lfdi = None
-        self._swVer = None
 
         # Setup the MQTT server connection
         self.mqtt_server_address = os.getenv('MQTT_SERVER')
@@ -56,12 +55,40 @@ class xcelMeter():
         self.mqtt_client = self.setup_mqtt(self.mqtt_server_address, self.mqtt_port)
 
         # Create a new requests session based on the passed in ip address and port #
-        self.session = self.setup_session(creds, ip_address)
+        self.requests_session = self.setup_session(creds, ip_address)
+        
+        # XML Entries we're looking for within the endpoint
+        hw_info_names = ['lFDI', 'swVer', 'mfID']
+        # Endpoint of the meter used for HW info
+        hw_info_url = '/sdev/sdi'
+        # Query the meter to get some more details about it
+        details_dict = self.get_hardware_details(hw_info_url, hw_info_names)
+        self._mfid = details_dict['mfID']
+        self._lfdi = details_dict['lFDI']
+        self._swVer = details_dict['swVer']
 
         # List to store our endpoint objects in
         self.endpoints_list = self.load_endpoints('endpoints.yaml')
         self.endpoints = self.create_endpoints(self.endpoints_list)
         self.POLLING_RATE = 5.0
+
+    def get_hardware_details(self, hw_info_url: str, hw_names: list) -> dict:
+        """
+        Queries the meter hardware endpoint at the ip address passed 
+        to the class. 
+        
+        Returns: dict, {<element name>: <meter response>}
+        """
+        query_url = f'{self.url}{hw_info_url}'
+        # query the hw specs endpoint
+        x = self.requests_session.get(query_url, verify=False, timeout=4.0)
+        # Parse the response xml looking for the passed in element names
+        root = ET.fromstring(x.text)
+        hw_info_dict = {}
+        for name in hw_names:
+            hw_info_dict[name] = root.find(f'.//{IEEE_PREFIX}{name}').text
+        
+        return hw_info_dict
 
     @staticmethod
     def setup_session(creds: tuple, ip_address: str) -> requests.session:
@@ -92,7 +119,7 @@ class xcelMeter():
         for point in endpoints:
             for endpoint_name, v in point.items():
                 request_url = f'{self.url}{v["url"]}'
-                query_obj.append(xcelEndpoint(self.session, self.mqtt_client, 
+                query_obj.append(xcelEndpoint(self.requests_session, self.mqtt_client, 
                                     request_url, endpoint_name, v['tags']))
         
         return query_obj
