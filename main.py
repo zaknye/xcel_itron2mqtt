@@ -1,44 +1,10 @@
 import os
-import ssl
-import yaml
-import requests
-import paho.mqtt.client as mqtt
 from time import sleep
 from pathlib import Path
-from xcelEndpoint import xcelEndpoint
+from xcelMeter import xcelMeter
 from zeroconf import ServiceBrowser, ServiceListener, Zeroconf
-from requests.packages.urllib3.util.ssl_ import create_urllib3_context
-from requests.packages.urllib3.poolmanager import PoolManager
-from requests.adapters import HTTPAdapter
 
-POLLING_RATE = 5
-# Our target cipher is: ECDHE-ECDSA-AES128-CCM8
-CIPHERS = ('ECDHE')
-
-# Create an adapter for our request to enable the non-standard cipher
-# From https://lukasa.co.uk/2017/02/Configuring_TLS_With_Requests/
-class CCM8Adapter(HTTPAdapter):
-    """
-    A TransportAdapter that re-enables ECDHE support in Requests.
-    Not really sure how much redundancy is actually required here
-    """
-    def init_poolmanager(self, *args, **kwargs):
-        ssl_version=ssl.PROTOCOL_TLSv1_2
-        context = create_urllib3_context(ssl_version=ssl_version)
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_REQUIRED
-        context.set_ciphers(CIPHERS)
-        kwargs['ssl_context'] = context
-        return super(CCM8Adapter, self).init_poolmanager(*args, **kwargs)
-
-    def proxy_manager_for(self, *args, **kwargs):
-        ssl_version=ssl.PROTOCOL_TLSv1_2
-        context = create_urllib3_context(ssl_version=ssl_version)
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_REQUIRED
-        context.set_ciphers(CIPHERS)
-        kwargs['ssl_context'] = context
-        return super(CCM8Adapter, self).proxy_manager_for(*args, **kwargs)
+INTEGRATION_NAME = "Xcel Itron 5"
 
 # mDNS listener to find the IP Address of the meter on the network
 class XcelListener(ServiceListener):
@@ -54,53 +20,6 @@ class XcelListener(ServiceListener):
     def add_service(self, zc: Zeroconf, type_: str, name: str) -> None:
         self.info = zc.get_service_info(type_, name)
         print(f"Service {name} added, service info: {self.info}")
-
-# Setup MQTT client that will be shared with each XcelQuery object
-def setup_mqtt() -> mqtt.Client:
-    """
-    Creates a new mqtt client to be used for the the xcelQuery
-    objects.
-
-    Returns: mqtt.Client object
-    """
-    
-    def on_connect(client, userdata, flags, rc):
-        if rc == 0:
-            print("Connected to MQTT Broker!")
-        else:
-            print("Failed to connect, return code %d\n", rc)
-
-    mqtt_server_address = os.getenv('MQTT_SERVER')
-    env_port = int(os.getenv('MQTT_PORT'))
-    # If environment variable for MQTT port is set, use that
-    # if not, use the default
-    mqtt_port = env_port if env_port else 1883
-    # Check if a username/PW is setup for the MQTT connection
-    mqtt_username = os.getenv('MQTT_USER')
-    mqtt_password = os.getenv('MQTT_PASSWORD')
-    if mqtt_username and mqtt_password:
-        client.username_pw_set(mqtt_username, mqtt_password)
-    # If no env variable was set, skip setting creds?
-    client = mqtt.Client()
-    client.on_connect = on_connect
-    client.connect(mqtt_server_address, mqtt_port)
-    client.loop_start()
-
-    return client
-
-def setup_session(creds: tuple, ip_address: str) -> requests.session:
-    """
-    Creates a new requests session with the given credentials pointed
-    at the give IP address. Will be shared across each xcelQuery object.
-
-    Returns: request.session
-    """
-    session = requests.session()
-    session.cert = creds
-    # Mount our adapter to the domain
-    session.mount('https://{ip_address}', CCM8Adapter())
-
-    return session
 
 def look_for_creds() -> tuple:
     """
@@ -123,7 +42,7 @@ def look_for_creds() -> tuple:
     else:
         raise FileNotFoundError('Could not find cert and key credentials')
 
-def mDNS_search_for_meter() -> str:
+def mDNS_search_for_meter() -> str | int:
     """
     Creates a new zeroconf instance to probe the network for the meter
     to extract its ip address and port. Closes the instance down when complete.
@@ -143,36 +62,16 @@ def mDNS_search_for_meter() -> str:
     print(listener.info)
     # Auto parses the network byte format into a legible address
     ip_address = listener.info.parsed_addresses()[0]
-    # TODO: Add port capturing here
+    port = listener.info.port
     # Close out our mDNS discovery device
     zeroconf.close()
   
-    return ip_address
+    return ip_address, port
+
 
 if __name__ == '__main__':
-
-    ip_address = mDNS_search_for_meter()
-    creds = look_for_creds()
-    session = setup_session(creds, ip_address)
-    mqtt_client = setup_mqtt()
-    # Read in the API structure for a dictionary of endpoints and XML structure
-    with open('endpoints.yaml', mode='r', encoding='utf-8') as file:
-        endpoints = yaml.safe_load(file)
-    # Build query objects for each endpoint
-    query_obj = []
-    for point in endpoints:
-        for endpoint_name, v in point.items():
-            request_url = f'https://{ip_address}:8081{v["url"]}'
-            query_obj.append(xcelEndpoint(session, mqtt_client, request_url, endpoint_name, v['tags']))
     
-    # Send MQTT config setup to Home assistant
-    for obj in query_obj:
-        obj.mqtt_send_config()
-        input()
-
-    while True:
-        sleep(5)
-        for obj in query_obj:
-            reading = obj.get_reading()
-            obj.process_send_mqtt(reading)
-            print(reading)
+    ip_address, port_num = mDNS_search_for_meter()
+    creds = look_for_creds()
+    meter = xcelMeter(INTEGRATION_NAME, ip_address, port_num, creds)
+    meter.run()

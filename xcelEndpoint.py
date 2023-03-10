@@ -20,13 +20,15 @@ class xcelEndpoint():
         self.name = name
         self.tags = tags
         self.client = mqtt_client
-        self.poll_rate = poll_rate
 
         self._mqtt_topic_prefix = 'homeassistant/'
         self._current_response = None
         self._mqtt_topic = None
         self._entity_type_lookup = {}
-        
+
+        # Setup the rest of what we need for this endpoint
+        self.mqtt_send_config()
+
     def query_endpoint(self) -> str:
         """
         Sends a request to the given endpoint associated with the 
@@ -38,7 +40,8 @@ class xcelEndpoint():
     
         return x.text
 
-    def parse_response(self, response: str, tags: dict) -> dict:
+    @staticmethod
+    def parse_response(response: str, tags: dict) -> dict:
         """
         Drill down the XML response from the meter and extract the
         readings according to the endpoints.yaml structure.
@@ -90,6 +93,7 @@ class xcelEndpoint():
         payload['name'] = sensor_name
         mqtt_topic = f'{self._mqtt_topic_prefix}{entity_type}/{self.name}{name_suffix}/config'
         # Capture the state topic the sensor is associated with for later use
+        print("SETTING ENTITY TYPE LOOKUP")
         self._entity_type_lookup[sensor_name] = payload['state_topic']
 
         return mqtt_topic, payload
@@ -124,6 +128,9 @@ class xcelEndpoint():
         # Cycle through all the readings for the given sensor
         for k, v in reading.items():
             # Figure out which topic this reading needs to be sent to
+            print("Entity Type Lookup Dict:")
+            print(self._entity_type_lookup)
+            print(f"Looking for key: {k}")
             topic = self._entity_type_lookup[k]
             if topic not in mqtt_topic_message.keys():
                 mqtt_topic_message[topic] = {}
