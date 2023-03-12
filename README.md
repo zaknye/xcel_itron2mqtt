@@ -13,6 +13,7 @@ This script will generate new keys and print out the LFDI string to use for regi
 ```
 ./scripts/generate_keys.sh -p
 ```
+These keys will be saved in the local directory `certs/.cert.pem` and `certs/.key.pem`
 
 ## Docker
 
@@ -20,23 +21,34 @@ Build the container.
 ```
 ./docker/build.sh
 ```
-Run the container. The easiest way currently to pass through mDNS to the container is to use host networking.
+Then run the container using the required options below. 
+### Options
+The following are options that may be passed into the container in the form of environment variables or required volumes
+| Option | Expected Arg | Optional | 
+| ------ | ------------ | -------- |
+| -v <path_to_cert_folder>:/opt/xcel_itron2mqtt/.certs | Folder path to the certs generated with the generate keys script | NO |
+| -e MQTT_SERVER | IP address of the MQTT server to communicate with | NO |
+| -e MQTT_PORT | Port # of the MQTT server to communicate with, **Default: 1883**| yes |
+| -e CERT_PATH | Path to cert file (within the container) if different than the default | yes |
+| -e KEY_PATH | Path to key file (within the container) if different than the default | yes |
 
- Maybe in the future use https://github.com/flungo-docker/avahi
+### Example
 ```
 docker run --rm \
     --net host \
-    -e CERT_PATH=</path/to/certfile> \
-    -e KEYPATH=</path/to/certfile> \
-    -v <path_to_cert_folder>:/certs \
+    -e MQTT_SERVER=<IP_ADDRESS> \
+    -v <path_to_cert_folder>:/opt/xcel_itron2mqtt/.certs \
     xcel_itron2mqtt:latest
 ```
-
+> The easiest way currently to pass through mDNS to the container is to use host networking.
+>
+> Maybe in the future use https://github.com/flungo-docker/avahi
+### Development Example
 For running as a developer, the following is helpful to allow you to work in the container
 ```
 docker run --rm -it \
     --net host \
-    -v `pwd`:/data \
+    -v `pwd`:/opt/xcel_itron2mqtt \
     --entrypoint /bin/sh \
     xcel_itron2mqtt:latest
 ```

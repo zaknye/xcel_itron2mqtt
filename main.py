@@ -1,85 +1,10 @@
 import os
-import ssl
-import yaml
-import requests
-import xml.etree.ElementTree as ET
-from pathlib import Path
 from time import sleep
+from pathlib import Path
+from xcelMeter import xcelMeter
 from zeroconf import ServiceBrowser, ServiceListener, Zeroconf
-from requests.packages.urllib3.util.ssl_ import create_urllib3_context
-from requests.packages.urllib3.poolmanager import PoolManager
-from requests.adapters import HTTPAdapter
 
-IEEE_PREFIX = '{urn:ieee:std:2030.5:ns}'
-POLLING_RATE = 5
-
-# Our target cipher is: ECDHE-ECDSA-AES128-CCM8
-CIPHERS = ('ECDHE')
-
-class XcelQuery():
-    def __init__(self, session: requests.session, url: str, name: str, 
-                    tags: list, poll_rate = 5.0):
-        self.requests_session = session
-        self.current_response = None
-        self.tags = tags
-        self.url = url
-        self.poll_rate = poll_rate
-        
-    def query_endpoint(self) -> str:
-        x = self.requests_session.get(self.url, verify=False, timeout=4.0)
-    
-        return x.text
-
-    def parse_response(self, response: str, tags: list) -> dict:
-        readings_dict = {}
-        root = ET.fromstring(response)
-        for tag in tags:
-            if not isinstance(tag, dict):
-                search_val = f'{IEEE_PREFIX}{tag}'
-                value = root.find(f'.//{IEEE_PREFIX}{tag}').text
-                readings_dict[tag] = value
-            else:
-                # A lot of assumptions on the format of the endpoints YAML
-                for k, v in tag.items():
-                    for val in v:
-                        if k not in readings_dict.keys():
-                            readings_dict[k] = {}
-                        search_val = f'{IEEE_PREFIX}{val}'
-                        value = root.find(f'.//{IEEE_PREFIX}{val}').text
-                        readings_dict[k][val] = value
-    
-        return readings_dict
-
-    def get_reading(self) -> str:
-        response = self.query_endpoint()
-        self.current_response = self.parse_response(response, self.tags)
-        
-        return self.current_response
-
-# Create an adapter for our request to enable the non-standard cipher
-# From https://lukasa.co.uk/2017/02/Configuring_TLS_With_Requests/
-class CCM8Adapter(HTTPAdapter):
-    """
-    A TransportAdapter that re-enables ECDHE support in Requests.
-    Not really sure how much redundancy is actually required here
-    """
-    def init_poolmanager(self, *args, **kwargs):
-        ssl_version=ssl.PROTOCOL_TLSv1_2
-        context = create_urllib3_context(ssl_version=ssl_version)
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_REQUIRED
-        context.set_ciphers(CIPHERS)
-        kwargs['ssl_context'] = context
-        return super(CCM8Adapter, self).init_poolmanager(*args, **kwargs)
-
-    def proxy_manager_for(self, *args, **kwargs):
-        ssl_version=ssl.PROTOCOL_TLSv1_2
-        context = create_urllib3_context(ssl_version=ssl_version)
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_REQUIRED
-        context.set_ciphers(CIPHERS)
-        kwargs['ssl_context'] = context
-        return super(CCM8Adapter, self).proxy_manager_for(*args, **kwargs)
+INTEGRATION_NAME = "Xcel Itron 5"
 
 # mDNS listener to find the IP Address of the meter on the network
 class XcelListener(ServiceListener):
@@ -96,20 +21,19 @@ class XcelListener(ServiceListener):
         self.info = zc.get_service_info(type_, name)
         print(f"Service {name} added, service info: {self.info}")
 
-def setup_session(creds: tuple, ip_address: str) -> requests.session:
-    session = requests.session()
-    session.cert = creds
-    # Mount our adapter to the domain
-    session.mount('https://{ip_address}', CCM8Adapter())
-
-    return session
-
 def look_for_creds() -> tuple:
+    """
+    Defaults to extracting the cert and key path from environment variables,
+    but if those don't exist it tries to find the hidden credentials files 
+    in the default folder of /certs.
+
+    Returns: tuple of paths for cert and key files
+    """
     # Find if the cred paths are on PATH
     cert = os.getenv('CERT_PATH')
     key = os.getenv('KEY_PATH')
-    cert_path = Path('cert.pem')
-    key_path = Path('key.pem')
+    cert_path = Path('certs/.cert.pem')
+    key_path = Path('certs/.key.pem')
     if cert and key:
         return cert, key
     # If not, look in the local directory
@@ -118,11 +42,16 @@ def look_for_creds() -> tuple:
     else:
         raise FileNotFoundError('Could not find cert and key credentials')
 
-def mDNS_search_for_meter() -> str:
-    # create a zeroconf object and listener to query mDNS for the meter
+def mDNS_search_for_meter() -> str | int:
+    """
+    Creates a new zeroconf instance to probe the network for the meter
+    to extract its ip address and port. Closes the instance down when complete.
+
+    Returns: string, ip address of the meter
+    """
     zeroconf = Zeroconf()
     listener = XcelListener()
-    # Meter will respone on _smartenergy._tcp.local. port 5353
+    # Meter will respond on _smartenergy._tcp.local. port 5353
     browser = ServiceBrowser(zeroconf, "_smartenergy._tcp.local.", listener)
     # Have to wait to hear back from the asynchrounous listener/browser task
     sleep(10)
@@ -133,28 +62,16 @@ def mDNS_search_for_meter() -> str:
     print(listener.info)
     # Auto parses the network byte format into a legible address
     ip_address = listener.info.parsed_addresses()[0]
-    # TODO: Add port capturing here
+    port = listener.info.port
     # Close out our mDNS discovery device
     zeroconf.close()
   
-    return ip_address
+    return ip_address, port
+
 
 if __name__ == '__main__':
-
-    ip_address = mDNS_search_for_meter()
+    ip_address, port_num = mDNS_search_for_meter()
     creds = look_for_creds()
-    session = setup_session(creds, ip_address)
-    # Read in the API structure for a dictionary of endpoints and XML structure
-    with open('endpoints.yaml', mode='r', encoding='utf-8') as file:
-        endpoints = yaml.safe_load(file)
-    # Build query objects for each endpoint
-    query_obj = []
-    for point in endpoints:
-        for endpoint_name, v in point.items():
-            request_url = f'https://{ip_address}:8081{v["url"]}'
-            query_obj.append(XcelQuery(session, request_url, endpoint_name, v['tags']))
-    while True:
-        sleep(POLLING_RATE)
-        for obj in query_obj:
-            reading = obj.get_reading()
-            print(reading)
+    meter = xcelMeter(INTEGRATION_NAME, ip_address, port_num, creds)
+    # The run method controls all the looping, querying, and mqtt sending
+    meter.run()
