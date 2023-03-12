@@ -154,11 +154,11 @@ class xcelEndpoint():
         Returns: integer
         """
         result = [0]
-        print(f"Sending to MQTT TOPIC:\t{topic}")
-        print(f"Payload:\t\t{message}")
+        #print(f"Sending to MQTT TOPIC:\t{topic}")
+        #print(f"Payload:\t\t{message}")
         result = self.client.publish(topic, str(message))
         #print('Error in sending MQTT payload')
-        print(f"MQTT Send Result: \t\t{result}")
+        #print(f"MQTT Send Result: \t\t{result}")
         # Return status of the published message
         return result[0]
 

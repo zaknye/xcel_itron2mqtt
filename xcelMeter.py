@@ -149,10 +149,10 @@ class xcelMeter():
 
         Returns: int
         """
-        env_port = int(os.getenv('MQTT_PORT'))
+        env_port = os.getenv('MQTT_PORT')
         # If environment variable for MQTT port is set, use that
         # if not, use the default
-        mqtt_port = env_port if env_port else 1883
+        mqtt_port = int(env_port) if env_port else 1883
         
         return mqtt_port
 
@@ -210,9 +210,9 @@ class xcelMeter():
             }
         config_dict.update(self.device_info)
         config_json = json.dumps(config_dict)
-        print(f"Sending MQTT Discovery Payload")
-        print(f"TOPIC: {state_topic}")
-        print(f"Config: {config_json}")
+        #print(f"Sending MQTT Discovery Payload")
+        #print(f"TOPIC: {state_topic}")
+        #print(f"Config: {config_json}")
         self.mqtt_client.publish(state_topic, str(config_json))
 
     def run(self) -> None:

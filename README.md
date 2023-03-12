@@ -34,10 +34,10 @@ The following are options that may be passed into the container in the form of e
 
 ### Example
 ```
-docker run --rm \
+docker run --rm -d \
     --net host \
     -e MQTT_SERVER=<IP_ADDRESS> \
-    -v <path_to_cert_folder>:/opt/xcel_itron2mqtt/.certs \
+    -v <path_to_cert_folder>:/opt/xcel_itron2mqtt/certs \
     xcel_itron2mqtt:latest
 ```
 > The easiest way currently to pass through mDNS to the container is to use host networking.
