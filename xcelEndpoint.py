@@ -1,4 +1,5 @@
 import yaml
+import json
 import requests
 import paho.mqtt.client as mqtt
 import xml.etree.ElementTree as ET
@@ -14,17 +15,19 @@ class xcelEndpoint():
     instances.
     """
     def __init__(self, session: requests.session, mqtt_client: mqtt.Client, 
-                    url: str, name: str, tags: list, poll_rate = 5.0):
+                    url: str, name: str, tags: list, device_info: dict, poll_rate = 5.0):
         self.requests_session = session
         self.url = url
         self.name = name
         self.tags = tags
         self.client = mqtt_client
+        self.device_info = device_info
 
         self._mqtt_topic_prefix = 'homeassistant/'
         self._current_response = None
         self._mqtt_topic = None
-        self._entity_type_lookup = {}
+        # Record all of the sensor state topics in an easy to lookup dict
+        self._sensor_state_topics = {}
 
         # Setup the rest of what we need for this endpoint
         self.mqtt_send_config()
@@ -78,7 +81,7 @@ class xcelEndpoint():
 
         return self.current_response
 
-    def create_config(self, sensor_name: str, name_suffix: str, details: dict) -> tuple[str, dict]:
+    def create_config(self, sensor_name: str,  details: dict) -> tuple[str, dict]:
         """
         Helper to generate the JSON sonfig payload for setting
         up the new Homeassistant entities
@@ -87,14 +90,19 @@ class xcelEndpoint():
         topic, and a dict to be used as the payload.
         """
         payload = deepcopy(details)
+        mqtt_friendly_name = self.name.replace(" ", "_")
         entity_type = payload.pop('entity_type')
-        payload['state_topic'] = f'{self._mqtt_topic_prefix}{entity_type}/{self.name}/state'
-        payload['value_template'] = f"{{{{ value_template.{sensor_name} }}}}"
-        payload['name'] = sensor_name
-        mqtt_topic = f'{self._mqtt_topic_prefix}{entity_type}/{self.name}{name_suffix}/config'
+        payload["state_topic"] = f'{self._mqtt_topic_prefix}{entity_type}/{mqtt_friendly_name}/{sensor_name}/state'
+        payload['name'] = f'{self.name} {sensor_name}'
+        # Mouthful
+        # Unique ID becomes the device name + class name + sensor name, all lower case, all underscores instead of spaces
+        payload['unique_id'] = f"{self.device_info['device']['name']}_{self.name}_{sensor_name}".lower().replace(' ', '_')
+        payload.update(self.device_info)
+        # MQTT Topics don't like spaces
+        mqtt_topic = f'{self._mqtt_topic_prefix}{entity_type}/{mqtt_friendly_name}/{sensor_name}/config'
         # Capture the state topic the sensor is associated with for later use
-        print("SETTING ENTITY TYPE LOOKUP")
-        self._entity_type_lookup[sensor_name] = payload['state_topic']
+        self._sensor_state_topics[sensor_name] = payload['state_topic']
+        payload = json.dumps(payload)
 
         return mqtt_topic, payload
 
@@ -109,49 +117,57 @@ class xcelEndpoint():
             if isinstance(v, list):
                 for val_items in v:
                     name, details = val_items.popitem()
-                    name_suffix = f'{k[0].upper()}{name[0].upper()}'
                     sensor_name = f'{k}{name}'
-                    mqtt_topic, payload = self.create_config(sensor_name, name_suffix, details)
+                    mqtt_topic, payload = self.create_config(sensor_name, details)
                     # Send MQTT payload
                     self.mqtt_publish(mqtt_topic, str(payload))
             else:
                 name_suffix = f'{k[0].upper()}'
-                mqtt_topic, payload = self.create_config(k, name_suffix, v)
+                mqtt_topic, payload = self.create_config(k, v)
                 self.mqtt_publish(mqtt_topic, str(payload))
 
     def process_send_mqtt(self, reading: dict) -> None:
         """
         Run through the readings from the meter and translate
         and prepare these readings to send over mqtt
+
+        Returns: None
         """
         mqtt_topic_message = {}
         # Cycle through all the readings for the given sensor
         for k, v in reading.items():
             # Figure out which topic this reading needs to be sent to
-            print("Entity Type Lookup Dict:")
-            print(self._entity_type_lookup)
-            print(f"Looking for key: {k}")
-            topic = self._entity_type_lookup[k]
+            topic = self._sensor_state_topics[k]
             if topic not in mqtt_topic_message.keys():
                 mqtt_topic_message[topic] = {}
             # Create dict of {topic: payload}
-            mqtt_topic_message[topic].update({k: v})
+            mqtt_topic_message[topic] = v
 
         # Cycle through and send the payload to the associated keys
         for topic, payload in mqtt_topic_message.items():
-            self.mqtt_publish(topic, str(payload))
+            self.mqtt_publish(topic, payload)
 
     def mqtt_publish(self, topic: str, message: str) -> int:
         """
         Publish the given message to the topic associated with the class
        
-        Returns status integer
+        Returns: integer
         """
         result = [0]
         print(f"Sending to MQTT TOPIC:\t{topic}")
         print(f"Payload:\t\t{message}")
-        result = self.client.publish(topic, message)
+        result = self.client.publish(topic, str(message))
         #print('Error in sending MQTT payload')
-            
+        print(f"MQTT Send Result: \t\t{result}")
         # Return status of the published message
         return result[0]
+
+    def run(self) -> None:
+        """
+        Main business loop for the endpoint class.
+        Read from the meter, process and send over MQTT
+
+        Returns: None
+        """
+        reading = self.get_reading()
+        self.process_send_mqtt(reading)

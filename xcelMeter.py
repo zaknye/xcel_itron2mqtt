@@ -1,6 +1,7 @@
 import os
 import ssl
 import yaml
+import json
 import requests
 import paho.mqtt.client as mqtt
 import xml.etree.ElementTree as ET
@@ -46,6 +47,7 @@ class xcelMeter():
 
     def __init__(self, name: str, ip_address: str, port: int, creds: Tuple[str, str]):
         self.name = name
+        self.POLLING_RATE = 5.0
         # Base URL used to query the meter
         self.url = f'https://{ip_address}:{port}'
 
@@ -67,11 +69,22 @@ class xcelMeter():
         self._lfdi = details_dict['lFDI']
         self._swVer = details_dict['swVer']
 
+        # Device info used for home assistant MQTT discovery
+        self.device_info = {
+                            "device": {
+                                "identifiers": [self._lfdi],
+                                "name": self.name,
+                                "model": self._mfid,
+                                "sw_version": self._swVer
+                                }
+                            }
+        # Send homeassistant a new device config for the meter
+        self.send_mqtt_config()
+
         # List to store our endpoint objects in
         self.endpoints_list = self.load_endpoints('endpoints.yaml')
-        self.endpoints = self.create_endpoints(self.endpoints_list)
-        self.POLLING_RATE = 5.0
-
+        self.endpoints = self.create_endpoints(self.endpoints_list, self.device_info)
+        
     def get_hardware_details(self, hw_info_url: str, hw_names: list) -> dict:
         """
         Queries the meter hardware endpoint at the ip address passed 
@@ -104,28 +117,38 @@ class xcelMeter():
         session.mount('https://{ip_address}', CCM8Adapter())
 
         return session
-
-    # Read in the API structure for a dictionary of endpoints and XML structure
+    
     @staticmethod
     def load_endpoints(file_path: str) -> list:
+        """
+        Loads the yaml file passed containing meter endpoint information
+
+        Returns: list
+        """
         with open(file_path, mode='r', encoding='utf-8') as file:
             endpoints = yaml.safe_load(file)
         
         return endpoints
     
-    def create_endpoints(self, endpoints: dict) -> None:
+    def create_endpoints(self, endpoints: dict, device_info: dict) -> None:
         # Build query objects for each endpoint
         query_obj = []
         for point in endpoints:
             for endpoint_name, v in point.items():
                 request_url = f'{self.url}{v["url"]}'
                 query_obj.append(xcelEndpoint(self.requests_session, self.mqtt_client, 
-                                    request_url, endpoint_name, v['tags']))
+                                    request_url, endpoint_name, v['tags'], device_info))
         
         return query_obj
     
     @staticmethod
     def get_mqtt_port() -> int:
+        """
+        Identifies the port to use for the MQTT server. Very basic,
+        just offers a detault of 1883 if no other port is set
+
+        Returns: int
+        """
         env_port = int(os.getenv('MQTT_PORT'))
         # If environment variable for MQTT port is set, use that
         # if not, use the default
@@ -133,7 +156,6 @@ class xcelMeter():
         
         return mqtt_port
 
-    # Setup MQTT client that will be shared with each XcelQuery object
     @staticmethod
     def setup_mqtt(mqtt_server_address, mqtt_port) -> mqtt.Client:
         """
@@ -163,15 +185,46 @@ class xcelMeter():
 
     # Send MQTT config setup to Home assistant
     def send_configs(self):
+        """
+        Sends the MQTT config to the homeassistant topic for
+        automatic discovery
+
+        Returns: None
+        """
         for obj in self.query_obj:
             obj.mqtt_send_config()
             input()
 
+    def send_mqtt_config(self) -> None:
+        """
+        Sends a discovery payload to homeassistant for the new meter device
+
+        Returns: None
+        """
+        state_topic = f'homeassistant/device/energy/{self.name.replace(" ", "_").lower()}'
+        config_dict = {
+            "name": self.name,
+            "device_class": "energy",
+            "state_topic": state_topic,
+            "unique_id": self._lfdi
+            }
+        config_dict.update(self.device_info)
+        config_json = json.dumps(config_dict)
+        print(f"Sending MQTT Discovery Payload")
+        print(f"TOPIC: {state_topic}")
+        print(f"Config: {config_json}")
+        self.mqtt_client.publish(state_topic, str(config_json))
+
     def run(self) -> None:
+        """
+        Main business loop. Just repeatedly queries the meter endpoints,
+        parses the results, packages these up into MQTT payloads, and sends
+        them off to the MQTT server
+
+        Returns: None
+        """
         while True:
             sleep(self.POLLING_RATE)
             for obj in self.endpoints:
-                reading = obj.get_reading()
-                obj.process_send_mqtt(reading)
-                print(reading)
+                obj.run()
     

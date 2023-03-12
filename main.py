@@ -32,8 +32,8 @@ def look_for_creds() -> tuple:
     # Find if the cred paths are on PATH
     cert = os.getenv('CERT_PATH')
     key = os.getenv('KEY_PATH')
-    cert_path = Path('cert.pem')
-    key_path = Path('key.pem')
+    cert_path = Path('certs/.cert.pem')
+    key_path = Path('certs/.key.pem')
     if cert and key:
         return cert, key
     # If not, look in the local directory
@@ -70,8 +70,8 @@ def mDNS_search_for_meter() -> str | int:
 
 
 if __name__ == '__main__':
-    
     ip_address, port_num = mDNS_search_for_meter()
     creds = look_for_creds()
     meter = xcelMeter(INTEGRATION_NAME, ip_address, port_num, creds)
+    # The run method controls all the looping, querying, and mqtt sending
     meter.run()
