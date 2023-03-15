@@ -31,7 +31,23 @@ The following are options that may be passed into the container in the form of e
 | -e MQTT_PORT | Port # of the MQTT server to communicate with, **Default: 1883**| yes |
 | -e CERT_PATH | Path to cert file (within the container) if different than the default | yes |
 | -e KEY_PATH | Path to key file (within the container) if different than the default | yes |
-
+## Compose (best way)
+Docker compose is the easiest way to integrate this repo in with your other services. Below is an example of how to use compose to integrate with a mosquitto MQTT broker container.
+### Example
+```
+xcel_itron2mqtt:
+    image: xcel_itron2mqtt
+    restart: unless-stopped
+    volumes:
+      - ~/xcel_itron2mqtt/certs:/opt/xcel_itron2mqtt/certs
+    networks:
+      - main
+    links:
+      - mosquitto
+    environment:
+      - MQTT_SERVER=mosquitto
+```
+## CLI 
 ### Example
 ```
 docker run --rm -d \
