@@ -124,7 +124,7 @@ class xcelEndpoint():
             else:
                 name_suffix = f'{k[0].upper()}'
                 mqtt_topic, payload = self.create_config(k, v)
-                self.mqtt_publish(mqtt_topic, str(payload))
+                self.mqtt_publish(mqtt_topic, str(payload), retain=True)
 
     def process_send_mqtt(self, reading: dict) -> None:
         """
@@ -147,7 +147,7 @@ class xcelEndpoint():
         for topic, payload in mqtt_topic_message.items():
             self.mqtt_publish(topic, payload)
 
-    def mqtt_publish(self, topic: str, message: str) -> int:
+    def mqtt_publish(self, topic: str, message: str, retain=False) -> int:
         """
         Publish the given message to the topic associated with the class
        
@@ -156,7 +156,7 @@ class xcelEndpoint():
         result = [0]
         #print(f"Sending to MQTT TOPIC:\t{topic}")
         #print(f"Payload:\t\t{message}")
-        result = self.client.publish(topic, str(message))
+        result = self.client.publish(topic, str(message), retain=retain)
         #print('Error in sending MQTT payload')
         #print(f"MQTT Send Result: \t\t{result}")
         # Return status of the published message
