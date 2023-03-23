@@ -29,6 +29,8 @@ The following are options that may be passed into the container in the form of e
 | -v <path_to_cert_folder>:/opt/xcel_itron2mqtt/.certs | Folder path to the certs generated with the generate keys script | NO |
 | -e MQTT_SERVER | IP address of the MQTT server to communicate with | NO |
 | -e MQTT_PORT | Port # of the MQTT server to communicate with, **Default: 1883**| yes |
+| -e MQTT_USER | Username to authenticate to the MQTT server | yes |
+| -e MQTT_PASSWORD | Password to authenticate to the MQTT server | yes | 
 | -e CERT_PATH | Path to cert file (within the container) if different than the default | yes |
 | -e KEY_PATH | Path to key file (within the container) if different than the default | yes |
 ## Compose (best way)
