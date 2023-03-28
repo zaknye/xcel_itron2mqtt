@@ -16,10 +16,14 @@ This script will generate new keys and print out the LFDI string to use for regi
 These keys will be saved in the local directory `certs/.cert.pem` and `certs/.key.pem`
 
 ## Docker
-
-Build the container.
+Pull from remote (easy)
 ```
-./docker/build.sh
+docker pull ghcr.io/zaknye/xcel_itron2mqtt:main
+```
+or (harder)\
+Build the container locally.
+```
+./scripts/docker-build.sh
 ```
 Then run the container using the required options below. 
 ### Options
