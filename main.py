@@ -70,7 +70,11 @@ def mDNS_search_for_meter() -> str | int:
 
 
 if __name__ == '__main__':
-    ip_address, port_num = mDNS_search_for_meter()
+    if os.getenv('METER_IP') and os.getenv('METER_PORT'):
+        ip_address = os.getenv('METER_IP')
+        port_num = os.getenv('METER_PORT')
+    else:
+        ip_address, port_num = mDNS_search_for_meter()
     creds = look_for_creds()
     meter = xcelMeter(INTEGRATION_NAME, ip_address, port_num, creds)
     # The run method controls all the looping, querying, and mqtt sending

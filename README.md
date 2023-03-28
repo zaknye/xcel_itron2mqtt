@@ -27,12 +27,14 @@ Build the container locally.
 ```
 Then run the container using the required options below. 
 ### Options
-The following are options that may be passed into the container in the form of environment variables or required volumes
+The following are options that may be passed into the container in the form of environment variables or required volumes.
 | Option | Expected Arg | Optional | 
 | ------ | ------------ | -------- |
 | -v <path_to_cert_folder>:/opt/xcel_itron2mqtt/.certs | Folder path to the certs generated with the generate keys script | NO |
 | -e MQTT_SERVER | IP address of the MQTT server to communicate with | NO |
 | -e MQTT_PORT | Port # of the MQTT server to communicate with, **Default: 1883**| yes |
+| -e METER_IP | IP address of the itron meter. Useful for those that run iot devices on other vlans | yes |
+| -e METER_PORT | Port number of the meter, must be set if `METER_IP` is set. | yes |
 | -e MQTT_USER | Username to authenticate to the MQTT server | yes |
 | -e MQTT_PASSWORD | Password to authenticate to the MQTT server | yes | 
 | -e CERT_PATH | Path to cert file (within the container) if different than the default | yes |
@@ -76,7 +78,9 @@ docker run --rm -it \
 ```
 ## Contributing
 
-Create a new branch and pull request once your new feature/fix is complete
+Please feel free to create an issue with a feature request, bug, or any other comments you have on the software found here.
+
+To contribute code, create a new fork, then create a pull request once your new feature/fix is complete.
 
 # Contact
 Zak Nye - [zaknye.com](https://zaknye.com) - zaknye@gmail.com
