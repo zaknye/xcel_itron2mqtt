@@ -6,7 +6,7 @@ RUN apk add --no-cache python3
 RUN python -m ensurepip --upgrade
 
 # Bring in our code to the container
-COPY . /opt/xcel_itron2mqtt
+COPY xcel_itron2mqtt /opt/xcel_itron2mqtt
 WORKDIR /opt/xcel_itron2mqtt
 RUN pip3 install -r requirements.txt
 
