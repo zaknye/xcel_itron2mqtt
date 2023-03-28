@@ -2,6 +2,8 @@
 
 Recently Xcel energy rolled out smart meter installations to facilitate TOU(Time of Use) pricing. This also benefits us, the users, as it provides us with a free way to see how much energy we're using at any time. This repo will help you get up and running with a python program that will query your meter on your network and convert its readings to MQTT messages.
 
+![Homeassistant Screenshot](docs/homeassistant_screenshot.png)
+
 ## Setup
 
 Enroll in Xcel enery launchpad and get your meter joined to your network.\
