@@ -173,10 +173,10 @@ class xcelMeter():
         # Check if a username/PW is setup for the MQTT connection
         mqtt_username = os.getenv('MQTT_USER')
         mqtt_password = os.getenv('MQTT_PASSWORD')
-        if mqtt_username and mqtt_password:
-            client.username_pw_set(mqtt_username, mqtt_password)
         # If no env variable was set, skip setting creds?
         client = mqtt.Client()
+        if mqtt_username and mqtt_password:
+            client.username_pw_set(mqtt_username, mqtt_password)
         client.on_connect = on_connect
         client.connect(mqtt_server_address, mqtt_port)
         client.loop_start()
