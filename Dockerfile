@@ -1,9 +1,4 @@
-FROM alpine:latest
-
-RUN apk add --no-cache python3
-
-# Potentially move this to multi-stage build for a smaller container
-RUN python -m ensurepip --upgrade
+FROM python:3.10-slim
 
 # Bring in our code to the container
 COPY xcel_itron2mqtt /opt/xcel_itron2mqtt
