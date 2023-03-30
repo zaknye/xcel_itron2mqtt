@@ -75,7 +75,7 @@ For running as a developer, the following is helpful to allow you to work in the
 docker run --rm -it \
     --net host \
     -v `pwd`:/opt/xcel_itron2mqtt \
-    --entrypoint /bin/sh \
+    --entrypoint /bin/bash \
     xcel_itron2mqtt:latest
 ```
 ## Contributing

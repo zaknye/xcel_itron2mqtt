@@ -1,4 +1,4 @@
-FROM python:3-slim
+FROM python:3.10-slim
 
 # Bring in our code to the container
 COPY xcel_itron2mqtt /opt/xcel_itron2mqtt
