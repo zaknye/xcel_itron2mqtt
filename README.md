@@ -32,7 +32,7 @@ Then run the container using the required options below.
 The following are options that may be passed into the container in the form of environment variables or required volumes.
 | Option | Expected Arg | Optional | 
 | ------ | ------------ | -------- |
-| -v <path_to_cert_folder>:/opt/xcel_itron2mqtt/.certs | Folder path to the certs generated with the generate keys script | NO |
+| -v <path_to_cert_folder>:/opt/xcel_itron2mqtt/certs | Folder path to the certs generated with the generate keys script | NO |
 | -e MQTT_SERVER | IP address of the MQTT server to communicate with | NO |
 | -e MQTT_PORT | Port # of the MQTT server to communicate with, **Default: 1883**| yes |
 | -e METER_IP | IP address of the itron meter. Useful for those that run iot devices on other vlans | yes |
