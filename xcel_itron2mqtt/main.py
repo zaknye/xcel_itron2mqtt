@@ -81,5 +81,8 @@ if __name__ == '__main__':
         ip_address, port_num = mDNS_search_for_meter()
     creds = look_for_creds()
     meter = xcelMeter(INTEGRATION_NAME, ip_address, port_num, creds)
-    # The run method controls all the looping, querying, and mqtt sending
-    meter.run()
+    meter.setup()
+
+    if meter.initalized:
+        # The run method controls all the looping, querying, and mqtt sending
+        meter.run()

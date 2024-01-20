@@ -10,6 +10,7 @@ from time import sleep
 from typing import Tuple
 from requests.packages.urllib3.util.ssl_ import create_urllib3_context
 from requests.adapters import HTTPAdapter
+from tenacity import retry, stop_after_attempt, before_sleep_log, wait_exponential
 
 # Local imports
 from xcelEndpoint import xcelEndpoint
@@ -17,6 +18,8 @@ from xcelEndpoint import xcelEndpoint
 IEEE_PREFIX = '{urn:ieee:std:2030.5:ns}'
 # Our target cipher is: ECDHE-ECDSA-AES128-CCM8
 CIPHERS = ('ECDHE')
+
+logger = logging.getLogger(__name__)
 
 # Create an adapter for our request to enable the non-standard cipher
 # From https://lukasa.co.uk/2017/02/Configuring_TLS_With_Requests/
@@ -57,6 +60,17 @@ class xcelMeter():
         # Create a new requests session based on the passed in ip address and port #
         self.requests_session = self.setup_session(creds, ip_address)
         
+        # List to store our endpoint objects in
+        self.endpoints_list = self.load_endpoints('endpoints.yaml')
+
+        # Set to uninitialized
+        self.initalized = False
+        
+    @retry(stop=stop_after_attempt(15),
+           wait=wait_exponential(multiplier=1, min=1, max=15),
+           before_sleep=before_sleep_log(logger, logging.WARNING),
+           reraise=True)
+    def setup(self) -> None:
         # XML Entries we're looking for within the endpoint
         hw_info_names = ['lFDI', 'swVer', 'mfID']
         # Endpoint of the meter used for HW info
@@ -79,9 +93,11 @@ class xcelMeter():
         # Send homeassistant a new device config for the meter
         self.send_mqtt_config()
 
-        # List to store our endpoint objects in
-        self.endpoints_list = self.load_endpoints('endpoints.yaml')
+        # create endpoints from list
         self.endpoints = self.create_endpoints(self.endpoints_list, self.device_info)
+
+        # ready to go
+        self.initalized = True
         
     def get_hardware_details(self, hw_info_url: str, hw_names: list) -> dict:
         """

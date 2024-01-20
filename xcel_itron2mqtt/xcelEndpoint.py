@@ -1,9 +1,13 @@
 import yaml
 import json
 import requests
+import logging
 import paho.mqtt.client as mqtt
 import xml.etree.ElementTree as ET
 from copy import deepcopy
+from tenacity import retry, stop_after_attempt, before_sleep_log, wait_exponential
+
+logger = logging.getLogger(__name__)
 
 # Prefix that appears on all of the XML elements
 IEEE_PREFIX = '{urn:ieee:std:2030.5:ns}'
@@ -32,6 +36,10 @@ class xcelEndpoint():
         # Setup the rest of what we need for this endpoint
         self.mqtt_send_config()
 
+    @retry(stop=stop_after_attempt(15),
+           wait=wait_exponential(multiplier=1, min=1, max=15),
+           before_sleep=before_sleep_log(logger, logging.WARNING),
+           reraise=True)
     def query_endpoint(self) -> str:
         """
         Sends a request to the given endpoint associated with the 

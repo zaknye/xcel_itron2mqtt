@@ -8,3 +8,4 @@ urllib3==1.26.14
 zeroconf==0.47.3
 pyyaml==6.0
 paho-mqtt==1.6.1
+tenacity==8.2.3
