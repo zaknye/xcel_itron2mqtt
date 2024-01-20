@@ -7,6 +7,7 @@ services:
     ports:
       - "1883:1883"
   xcel_itron2mqtt:
+    container_name: xcel_itron2mqtt
     build:
       context: .
       dockerfile: Dockerfile

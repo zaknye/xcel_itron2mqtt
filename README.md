@@ -46,6 +46,9 @@ The following are options that may be passed into the container in the form of e
 Docker compose is the easiest way to integrate this repo in with your other services. Below is an example of how to use compose to integrate with a mosquitto MQTT broker container.
 ### Example
 ```
+mosquitto:
+  image: eclipse-mosquitto
+  ...
 xcel_itron2mqtt:
     image: xcel_itron2mqtt
     restart: unless-stopped
@@ -53,11 +56,13 @@ xcel_itron2mqtt:
       - ~/xcel_itron2mqtt/certs:/opt/xcel_itron2mqtt/certs
     networks:
       - main
-    links:
+    depends_on:
       - mosquitto
     environment:
       - MQTT_SERVER=mosquitto
 ```
+
+See the `docker-compose.yaml` file for a working example
 ## CLI 
 ### Example
 ```
@@ -79,6 +84,8 @@ docker run --rm -it \
     --entrypoint /bin/bash \
     xcel_itron2mqtt:latest
 ```
+
+Alternatively, the `docker-compose.yaml` will allow you to bring a up an ephemeral MQTT broker along with the xcel_itron2mqtt container. Simply copy `.env.sample` to `.env`, update variables there as needed, and run `docker compose up`. You can then use `docker exec -it xcel_itron2mqtt /bin/bash` to attach to the running container.
 ## Contributing
 
 Please feel free to create an issue with a feature request, bug, or any other comments you have on the software found here.
