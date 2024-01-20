@@ -3,6 +3,7 @@ import ssl
 import yaml
 import json
 import requests
+import logging
 import paho.mqtt.client as mqtt
 import xml.etree.ElementTree as ET
 from time import sleep
@@ -166,9 +167,9 @@ class xcelMeter():
         """
         def on_connect(client, userdata, flags, rc):
             if rc == 0:
-                print("Connected to MQTT Broker!")
+                logging.info("Connected to MQTT Broker!")
             else:
-                print("Failed to connect, return code %d\n", rc)
+                logging.error("Failed to connect, return code %d\n", rc)
 
         # Check if a username/PW is setup for the MQTT connection
         mqtt_username = os.getenv('MQTT_USER')
@@ -210,9 +211,9 @@ class xcelMeter():
             }
         config_dict.update(self.device_info)
         config_json = json.dumps(config_dict)
-        #print(f"Sending MQTT Discovery Payload")
-        #print(f"TOPIC: {state_topic}")
-        #print(f"Config: {config_json}")
+        logging.debug(f"Sending MQTT Discovery Payload")
+        logging.debug(f"TOPIC: {state_topic}")
+        logging.debug(f"Config: {config_json}")
         self.mqtt_client.publish(state_topic, str(config_json))
 
     def run(self) -> None:
