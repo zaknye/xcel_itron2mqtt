@@ -14,8 +14,8 @@ class xcelEndpoint():
     Expects a request session that should be shared amongst the 
     instances.
     """
-    def __init__(self, session: requests.session, mqtt_client: mqtt.Client, 
-                    url: str, name: str, tags: list, device_info: dict, poll_rate = 5.0):
+    def __init__(self, session: requests.Session, mqtt_client: mqtt.Client, 
+                    url: str, name: str, tags: list, device_info: dict):
         self.requests_session = session
         self.url = url
         self.name = name

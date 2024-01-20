@@ -9,7 +9,6 @@ import xml.etree.ElementTree as ET
 from time import sleep
 from typing import Tuple
 from requests.packages.urllib3.util.ssl_ import create_urllib3_context
-from requests.packages.urllib3.poolmanager import PoolManager
 from requests.adapters import HTTPAdapter
 
 # Local imports
@@ -103,14 +102,14 @@ class xcelMeter():
         return hw_info_dict
 
     @staticmethod
-    def setup_session(creds: tuple, ip_address: str) -> requests.session:
+    def setup_session(creds: tuple, ip_address: str) -> requests.Session:
         """
         Creates a new requests session with the given credentials pointed
         at the give IP address. Will be shared across each xcelQuery object.
 
         Returns: request.session
         """
-        session = requests.session()
+        session = requests.Session()
         session.cert = creds
         # Mount our adapter to the domain
         session.mount('https://{ip_address}', CCM8Adapter())
