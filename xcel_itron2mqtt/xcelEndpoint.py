@@ -47,7 +47,7 @@ class xcelEndpoint():
 
         Returns: str in XML format of the meter's response
         """
-        x = self.requests_session.get(self.url, verify=False)
+        x = self.requests_session.get(self.url, verify=False, timeout=15.0)
     
         return x.text
 
