@@ -1,10 +1,14 @@
 import os
+import logging
 from time import sleep
 from pathlib import Path
 from xcelMeter import xcelMeter
 from zeroconf import ServiceBrowser, ServiceListener, Zeroconf
 
 INTEGRATION_NAME = "Xcel Itron 5"
+
+LOGLEVEL = os.environ.get('LOGLEVEL', 'INFO').upper()
+logging.basicConfig(format='%(levelname)s: %(message)s', level=LOGLEVEL)
 
 # mDNS listener to find the IP Address of the meter on the network
 class XcelListener(ServiceListener):
@@ -77,5 +81,8 @@ if __name__ == '__main__':
         ip_address, port_num = mDNS_search_for_meter()
     creds = look_for_creds()
     meter = xcelMeter(INTEGRATION_NAME, ip_address, port_num, creds)
-    # The run method controls all the looping, querying, and mqtt sending
-    meter.run()
+    meter.setup()
+
+    if meter.initalized:
+        # The run method controls all the looping, querying, and mqtt sending
+        meter.run()

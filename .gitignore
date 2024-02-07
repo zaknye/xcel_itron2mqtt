@@ -1,0 +1,11 @@
+# don't accidentally commit your secrets
+certs
+.env
+
+# OS junk
+.DS_Store
+
+# Python stuff
+__pycache__/
+*.py[cod]
+*$py.class

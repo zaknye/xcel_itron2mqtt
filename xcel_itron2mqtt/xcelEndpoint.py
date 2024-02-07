@@ -1,9 +1,13 @@
 import yaml
 import json
 import requests
+import logging
 import paho.mqtt.client as mqtt
 import xml.etree.ElementTree as ET
 from copy import deepcopy
+from tenacity import retry, stop_after_attempt, before_sleep_log, wait_exponential
+
+logger = logging.getLogger(__name__)
 
 # Prefix that appears on all of the XML elements
 IEEE_PREFIX = '{urn:ieee:std:2030.5:ns}'
@@ -14,8 +18,8 @@ class xcelEndpoint():
     Expects a request session that should be shared amongst the 
     instances.
     """
-    def __init__(self, session: requests.session, mqtt_client: mqtt.Client, 
-                    url: str, name: str, tags: list, device_info: dict, poll_rate = 5.0):
+    def __init__(self, session: requests.Session, mqtt_client: mqtt.Client, 
+                    url: str, name: str, tags: list, device_info: dict):
         self.requests_session = session
         self.url = url
         self.name = name
@@ -32,6 +36,10 @@ class xcelEndpoint():
         # Setup the rest of what we need for this endpoint
         self.mqtt_send_config()
 
+    @retry(stop=stop_after_attempt(15),
+           wait=wait_exponential(multiplier=1, min=1, max=15),
+           before_sleep=before_sleep_log(logger, logging.WARNING),
+           reraise=True)
     def query_endpoint(self) -> str:
         """
         Sends a request to the given endpoint associated with the 
@@ -39,7 +47,7 @@ class xcelEndpoint():
 
         Returns: str in XML format of the meter's response
         """
-        x = self.requests_session.get(self.url, verify=False, timeout=4.0)
+        x = self.requests_session.get(self.url, verify=False, timeout=15.0)
     
         return x.text
 
