@@ -68,12 +68,14 @@ class xcelEndpoint():
                 for val_items in v:
                     for k2, v2 in val_items.items():
                         search_val = f'{IEEE_PREFIX}{k2}'
-                        value = root.find(f'.//{search_val}').text
-                        readings_dict[f'{k}{k2}'] = value
+                        if root.find(f'.//{search_val}') is not None:
+                            value = root.find(f'.//{search_val}').text
+                            readings_dict[f'{k}{k2}'] = value
             else:
                 search_val = f'{IEEE_PREFIX}{k}'
-                value = root.find(f'.//{IEEE_PREFIX}{k}').text
-                readings_dict[k] = value
+                if root.find(f'.//{IEEE_PREFIX}{k}') is not None:
+                    value = root.find(f'.//{IEEE_PREFIX}{k}').text
+                    readings_dict[k] = value
     
         return readings_dict
 
