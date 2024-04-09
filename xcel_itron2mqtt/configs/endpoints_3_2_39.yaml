@@ -1,0 +1,41 @@
+- Instantaneous Demand:
+    url: '/upt/1/mr/1/r'
+    tags:
+      value:
+        entity_type: sensor
+        device_class: power
+        unit_of_measurement: W
+- Current Summation Received:
+    url: '/upt/1/mr/2/rs/1/r/1'
+    tags:
+      timePeriod:
+        - duration:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+        - start:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+      value:
+        entity_type: sensor
+        device_class: energy
+        unit_of_measurement: Wh
+        state_class: total
+- Current Summation Delivered:
+    url: '/upt/1/mr/3/rs/1/r/1'
+    tags:
+      timePeriod:
+        - duration:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+        - start:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+      value:
+        entity_type: sensor
+        device_class: energy
+        unit_of_measurement: Wh
+        state_class: total
