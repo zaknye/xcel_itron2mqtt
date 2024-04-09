@@ -59,13 +59,10 @@ class xcelMeter():
 
         # Create a new requests session based on the passed in ip address and port #
         self.requests_session = self.setup_session(creds, ip_address)
-        
-        # List to store our endpoint objects in
-        self.endpoints_list = self.load_endpoints('endpoints.yaml')
 
         # Set to uninitialized
         self.initalized = False
-        
+
     @retry(stop=stop_after_attempt(15),
            wait=wait_exponential(multiplier=1, min=1, max=15),
            before_sleep=before_sleep_log(logger, logging.WARNING),
@@ -93,17 +90,22 @@ class xcelMeter():
         # Send homeassistant a new device config for the meter
         self.send_mqtt_config()
 
+        # The swVer will dictate which version of endpoints we use
+        endpoints_file_ver = 'default' if str(self._swVer) != '3.2.39' else '3_2_39'
+        # List to store our endpoint objects in
+        self.endpoints_list = self.load_endpoints(f'configs/endpoints_{endpoints_file_ver}.yaml')
+
         # create endpoints from list
         self.endpoints = self.create_endpoints(self.endpoints_list, self.device_info)
 
         # ready to go
         self.initalized = True
-        
+
     def get_hardware_details(self, hw_info_url: str, hw_names: list) -> dict:
         """
-        Queries the meter hardware endpoint at the ip address passed 
-        to the class. 
-        
+        Queries the meter hardware endpoint at the ip address passed
+        to the class.
+
         Returns: dict, {<element name>: <meter response>}
         """
         query_url = f'{self.url}{hw_info_url}'
@@ -114,7 +116,7 @@ class xcelMeter():
         hw_info_dict = {}
         for name in hw_names:
             hw_info_dict[name] = root.find(f'.//{IEEE_PREFIX}{name}').text
-        
+
         return hw_info_dict
 
     @staticmethod
@@ -131,7 +133,7 @@ class xcelMeter():
         session.mount('https://{ip_address}', CCM8Adapter())
 
         return session
-    
+
     @staticmethod
     def load_endpoints(file_path: str) -> list:
         """
@@ -141,20 +143,20 @@ class xcelMeter():
         """
         with open(file_path, mode='r', encoding='utf-8') as file:
             endpoints = yaml.safe_load(file)
-        
+
         return endpoints
-    
+
     def create_endpoints(self, endpoints: dict, device_info: dict) -> None:
         # Build query objects for each endpoint
         query_obj = []
         for point in endpoints:
             for endpoint_name, v in point.items():
                 request_url = f'{self.url}{v["url"]}'
-                query_obj.append(xcelEndpoint(self.requests_session, self.mqtt_client, 
+                query_obj.append(xcelEndpoint(self.requests_session, self.mqtt_client,
                                     request_url, endpoint_name, v['tags'], device_info))
-        
+
         return query_obj
-    
+
     @staticmethod
     def get_mqtt_port() -> int:
         """
@@ -167,7 +169,7 @@ class xcelMeter():
         # If environment variable for MQTT port is set, use that
         # if not, use the default
         mqtt_port = int(env_port) if env_port else 1883
-        
+
         return mqtt_port
 
     @staticmethod
@@ -241,4 +243,3 @@ class xcelMeter():
             sleep(self.POLLING_RATE)
             for obj in self.endpoints:
                 obj.run()
-    
