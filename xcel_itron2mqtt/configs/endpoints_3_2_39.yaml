@@ -11,8 +11,9 @@
       timePeriod:
         - duration:
             entity_type: sensor
-            device_class: timestamp
-            value_template: '{{ as_datetime( value ) }}'
+            device_class: duration
+            value_template: '{{ value }}'
+            unit_of_measurement: s
         - start:
             entity_type: sensor
             device_class: timestamp
@@ -28,8 +29,9 @@
       timePeriod:
         - duration:
             entity_type: sensor
-            device_class: timestamp
-            value_template: '{{ as_datetime( value ) }}'
+            device_class: duration
+            value_template: '{{ value }}'
+            unit_of_measurement: s
         - start:
             entity_type: sensor
             device_class: timestamp
