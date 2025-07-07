@@ -36,7 +36,21 @@ docker-compose up -d
 docker-compose logs -f
 ```
 
-### **2. Access the Dashboard**
+### **2. Verify Services Are Running**
+
+```bash
+# Check service status
+docker-compose ps
+
+# You should see all services running:
+# - mosquitto (MQTT broker)
+# - influxdb (database)
+# - telegraf (data collection)
+# - grafana (dashboard)
+# - simulated_meter (test data)
+```
+
+### **3. Access the Dashboard**
 
 - **Grafana**: http://localhost:3000
 
@@ -50,17 +64,24 @@ docker-compose logs -f
   - Organization: `myorg`
   - Bucket: `energy_data`
 
-### **3. Test Data Generation**
+### **4. Test Data Generation**
 
 The simulated meter automatically starts and generates data. You can also run it manually:
 
 ```bash
-# Run simulated meter locally
+# Run simulated meter locally (recommended for testing)
+unset MQTT_SERVER  # Ensure we use localhost
 ./scripts/run_simulated_meter.sh
 
-# Or run the MQTT subscriber to see data
+# Or run inside Docker network (for production-like testing)
+export MQTT_SERVER=mqtt
+./scripts/run_simulated_meter.sh
+
+# Run the MQTT subscriber to see raw data
 ./scripts/run_subscriber.sh
 ```
+
+**Note**: The simulated meter connects to `localhost:1883` when run locally and `mqtt:1883` when run inside Docker. The script automatically detects the appropriate connection method.
 
 ## **Services Configuration**
 
@@ -173,6 +194,34 @@ The simulated meter generates realistic data based on typical household patterns
 - **Evening (5 PM - 9 PM)**: Peak usage (2000-6000W)
 - **Late Evening (9 PM - 12 AM)**: Declining usage (1000-3000W)
 
+### **Data Output Format**
+
+When running the simulated meter, you'll see formatted output like:
+
+```
+======================================================================
+📊 SIMULATED METER DATA - 14:30:25
+======================================================================
+⚡ POWER USAGE:
+   Current Demand:   2345 W
+   Topic: homeassistant/sensor/xcel_itron_5/Instantaneous_Demand/state
+
+🔌 ENERGY CONSUMPTION:
+   Total Received: 12345678 Wh
+   Converted:         12345.678 kWh
+   Topic: homeassistant/sensor/xcel_itron_5/Current_Summation_Received/state
+
+☀️  SOLAR PRODUCTION:
+   Total Delivered:  5432100 Wh
+   Converted:          5432.100 kWh
+   Topic: homeassistant/sensor/xcel_itron_5/Current_Summation_Delivered/state
+
+📈 NET ENERGY:
+   Net Consumption:   6913578 Wh
+   Net Converted:      6913.578 kWh
+======================================================================
+```
+
 ### **Solar Production Simulation**
 
 - **Daytime (6 AM - 6 PM)**: Variable production (0-3000W)
@@ -238,6 +287,11 @@ self.base_power_demand = 2500          # W
 1. Check Mosquitto logs: `docker-compose logs mqtt`
 2. Verify network connectivity between containers
 3. Check MQTT topic structure
+4. **For local testing**: Ensure `MQTT_SERVER` is not set to `mqtt` when running outside Docker
+   ```bash
+   unset MQTT_SERVER  # Use localhost
+   ./scripts/run_simulated_meter.sh
+   ```
 
 ### **Useful Commands**
 
@@ -259,7 +313,30 @@ docker-compose exec influxdb bash
 
 # Check data in InfluxDB
 docker-compose exec influxdb influx query 'from(bucket:"energy_data") |> range(start: -1h)'
+
+# Test MQTT connection locally
+unset MQTT_SERVER
+./scripts/run_simulated_meter.sh
+
+# Check MQTT topics
+./scripts/run_subscriber.sh
 ```
+
+## **Recent Improvements**
+
+### **Enhanced Simulated Meter**
+
+- **Improved Output Format**: Clear, readable data display with emojis and formatting
+- **Better Error Handling**: Detailed connection error messages and troubleshooting tips
+- **Flexible Connection**: Automatic detection of local vs Docker network connections
+- **Realistic Data Patterns**: Hourly usage patterns that simulate real household behavior
+
+### **Security Enhancements**
+
+- **Environment Variables**: Sensitive credentials moved to `.env` file
+- **Setup Script**: Interactive environment setup with `scripts/setup_env.sh`
+- **Template File**: `env.template` provides clear configuration examples
+- **Security Notes**: Clear warnings about not committing `.env` to version control
 
 ## **Production Considerations**
 
@@ -269,6 +346,7 @@ docker-compose exec influxdb influx query 'from(bucket:"energy_data") |> range(s
 - Use strong passwords
 - Configure SSL/TLS
 - Restrict network access
+- Use environment variables for sensitive data
 
 ### **Performance**
 
