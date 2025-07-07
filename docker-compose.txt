@@ -1,0 +1,22 @@
+version: "3.7"
+
+services:
+  mqtt:
+    image: emqx/nanomq
+    container_name: nanomq
+    ports:
+      - "1883:1883"
+  xcel_itron2mqtt:
+    container_name: xcel_itron2mqtt
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - mqtt
+    volumes:
+      - certs:/opt/xcel_itron2mqtt/certs
+    environment:
+      MQTT_SERVER: mqtt
+      METER_PORT: 8081
+    env_file:
+      - .env
