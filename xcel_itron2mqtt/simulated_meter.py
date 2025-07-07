@@ -110,6 +110,10 @@ class SimulatedMeter:
             return True
         except Exception as e:
             logger.error(f"Failed to connect to MQTT broker: {e}")
+            logger.error(
+                f"Make sure MQTT broker is running and accessible at {self.mqtt_server}:{self.mqtt_port}")
+            logger.error(
+                f"If running locally, ensure Docker containers are started with: docker-compose up -d")
             return False
 
     def generate_instantaneous_demand_xml(self):
@@ -306,6 +310,11 @@ def main():
     mqtt_port = int(os.getenv('MQTT_PORT', '1883'))
     mqtt_user = os.getenv('MQTT_USER')
     mqtt_password = os.getenv('MQTT_PASSWORD')
+
+    print(f"🔧 MQTT Configuration:")
+    print(f"   Server: {mqtt_server}:{mqtt_port}")
+    print(f"   User: {mqtt_user or 'None'}")
+    print()
 
     # Create and start simulated meter
     meter = SimulatedMeter(

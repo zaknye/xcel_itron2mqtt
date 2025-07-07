@@ -14,6 +14,7 @@ if [ ! -f "xcel_itron2mqtt/simulated_meter.py" ]; then
 fi
 
 # Set default MQTT settings if not provided
+# Use localhost when running outside Docker, mqtt when inside Docker
 export MQTT_SERVER=${MQTT_SERVER:-localhost}
 export MQTT_PORT=${MQTT_PORT:-1883}
 
