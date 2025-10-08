@@ -20,7 +20,7 @@ These keys will be saved in the local directory `certs/.cert.pem` and `certs/.ke
 ## Docker
 Pull from remote (easy)
 ```
-docker pull ghcr.io/zaknye/xcel_itron2mqtt:main
+docker pull ghcr.io/zaknye/xcel_itron2mqtt:latest
 ```
 or (harder)\
 Build the container locally.
