@@ -86,6 +86,82 @@ docker run --rm -it \
 ```
 
 Alternatively, the `docker-compose.yaml` will allow you to bring a up an ephemeral MQTT broker along with the xcel_itron2mqtt container. Simply copy `.env.sample` to `.env`, update variables there as needed, and run `docker compose up`. You can then use `docker exec -it xcel_itron2mqtt /bin/bash` to attach to the running container.
+
+### Using Nix
+If you have Nix with flakes enabled, you can use the provided flake to set up a development environment with Python 3 and all required dependencies:
+```
+nix develop
+```
+
+This will drop you into a shell with Python and all packages from `requirements.txt` available.
+
+For local development, create a `hack/run.sh` script with your settings (this directory is gitignored):
+
+```sh
+#!/bin/sh
+cd "$(dirname "$0")/../xcel_itron2mqtt" || exit 1
+
+export MQTT_SERVER=localhost
+export MQTT_PORT=1883
+export MQTT_USER=your_user
+export MQTT_PASSWORD=your_password
+export LOGLEVEL=DEBUG
+python3 -Wignore main.py
+```
+
+Make it executable with `chmod +x hack/run.sh`, then run with `./hack/run.sh`.
+
+## Troubleshooting
+
+### Verifying MQTT User Permissions
+
+If messages aren't appearing in your MQTT broker, verify that your MQTT user has the correct read/write permissions.
+
+**1. Test MQTT publish/subscribe functionality:**
+
+In one terminal, start a subscriber:
+```bash
+mosquitto_sub -h localhost -t "test/topic" -u your_mqtt_user -P your_password
+```
+
+In another terminal, publish a test message:
+```bash
+mosquitto_pub -h localhost -t "test/topic" -m "test message" -u your_mqtt_user -P your_password
+```
+
+If the subscriber receives the message, your MQTT user has proper permissions.
+
+**2. Check ACL configuration:**
+
+If messages aren't being received, check your Mosquitto ACL file (typically `/etc/mosquitto/acl.conf` or similar). Your user needs read/write access to the topics:
+
+```
+user your_mqtt_user
+topic readwrite #
+```
+
+The `#` wildcard grants access to all topics. For more restrictive access, specify the topic prefix:
+```
+user your_mqtt_user
+topic readwrite homeassistant/#
+```
+
+**3. Reload Mosquitto after configuration changes:**
+
+After modifying ACL or password files, restart Mosquitto to apply changes:
+```bash
+sudo systemctl restart mosquitto
+```
+
+Or reload the configuration without full restart:
+```bash
+sudo systemctl reload mosquitto
+```
+
+**4. Enable debug logging:**
+
+Set `LOGLEVEL=DEBUG` in your environment to see detailed MQTT publish attempts and responses.
+
 ## Contributing
 
 Please feel free to create an issue with a feature request, bug, or any other comments you have on the software found here.
