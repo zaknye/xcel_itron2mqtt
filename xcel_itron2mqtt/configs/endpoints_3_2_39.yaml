@@ -5,6 +5,7 @@
         entity_type: sensor
         device_class: power
         unit_of_measurement: W
+        state_class: measurement
 - Current Summation Received:
     url: '/upt/1/mr/2/rs/1/r/1'
     tags:
