@@ -17,9 +17,16 @@ from xcelEndpoint import xcelEndpoint
 
 IEEE_PREFIX = '{urn:ieee:std:2030.5:ns}'
 # Our target cipher is: ECDHE-ECDSA-AES128-CCM8
-CIPHERS = ('ECDHE')
+# Security level 0 is required to allow CCM8 ciphers in OpenSSL 3.x
+CIPHERS = 'ECDHE-ECDSA-AES128-CCM8:@SECLEVEL=0'
 
 logger = logging.getLogger(__name__)
+
+# Enable verbose SSL/TLS debugging
+# Uncomment these lines to see detailed SSL handshake information
+# logging.getLogger('urllib3').setLevel(logging.DEBUG)
+# import http.client
+# http.client.HTTPConnection.debuglevel = 1
 
 # Create an adapter for our request to enable the non-standard cipher
 # From https://lukasa.co.uk/2017/02/Configuring_TLS_With_Requests/
@@ -28,6 +35,11 @@ class CCM8Adapter(HTTPAdapter):
     A TransportAdapter that re-enables ECDHE support in Requests.
     Not really sure how much redundancy is actually required here
     """
+    def __init__(self, cert_file=None, key_file=None, *args, **kwargs):
+        self.cert_file = cert_file
+        self.key_file = key_file
+        super(CCM8Adapter, self).__init__(*args, **kwargs)
+
     def init_poolmanager(self, *args, **kwargs):
         kwargs['ssl_context'] = self.create_ssl_context()
         return super(CCM8Adapter, self).init_poolmanager(*args, **kwargs)
@@ -37,11 +49,47 @@ class CCM8Adapter(HTTPAdapter):
         return super(CCM8Adapter, self).proxy_manager_for(*args, **kwargs)
 
     def create_ssl_context(self):
-        ssl_version=ssl.PROTOCOL_TLSv1_2
-        context = create_urllib3_context(ssl_version=ssl_version)
+        # Create SSL context with TLSv1.2
+        context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+
+        # Disable hostname checking and set verify mode
         context.check_hostname = False
-        context.verify_mode = ssl.CERT_REQUIRED
+        context.verify_mode = ssl.CERT_NONE  # Changed from CERT_REQUIRED since we're using verify=False anyway
+
+        # Set the specific cipher WITH @SECLEVEL=0
+        # The @SECLEVEL=0 is critical - it sets the OpenSSL security level to 0,
+        # which is required to allow CCM8 ciphers in OpenSSL 3.x
         context.set_ciphers(CIPHERS)
+        logger.debug(f"Set ciphers with security level 0 (current security_level: {context.security_level})")
+
+        # Load client certificate if provided
+        if self.cert_file and self.key_file:
+            try:
+                context.load_cert_chain(self.cert_file, self.key_file)
+                logger.debug(f"Loaded client certificate: {self.cert_file}")
+            except Exception as e:
+                logger.error(f"Failed to load client certificate: {e}")
+        else:
+            logger.warning(f"No client certificate provided to SSL context")
+
+        # Enable legacy renegotiation for devices that don't support RFC 5746
+        # Required for Itron meters with OpenSSL 3.x
+        context.options |= ssl.OP_LEGACY_SERVER_CONNECT
+
+        # Disable various modern TLS features that might cause issues
+        context.options |= ssl.OP_NO_COMPRESSION
+        if hasattr(ssl, 'OP_NO_TLSv1_3'):
+            context.options |= ssl.OP_NO_TLSv1_3  # Disable TLS 1.3
+
+        # Debug logging to verify SSL context configuration
+        logger.debug(f"SSL Context created with:")
+        logger.debug(f"  Protocol: TLSv1.2")
+        logger.debug(f"  Ciphers: ECDHE-ECDSA-AES128-CCM8")
+        logger.debug(f"  Legacy renegotiation: enabled (OP_LEGACY_SERVER_CONNECT)")
+        logger.debug(f"  Verify mode: {context.verify_mode}")
+        logger.debug(f"  Check hostname: {context.check_hostname}")
+        logger.debug(f"  Options: {hex(context.options)}")
+
         return context
 
 class xcelMeter():
@@ -109,8 +157,24 @@ class xcelMeter():
         Returns: dict, {<element name>: <meter response>}
         """
         query_url = f'{self.url}{hw_info_url}'
-        # query the hw specs endpoint
-        x = self.requests_session.get(query_url, verify=False, timeout=4.0)
+        logger.debug(f"Querying meter at: {query_url}")
+
+        try:
+            # query the hw specs endpoint
+            x = self.requests_session.get(query_url, verify=False, timeout=4.0)
+            logger.debug(f"Successfully received response from meter")
+        except requests.exceptions.SSLError as e:
+            logger.error(f"SSL Error details:")
+            logger.error(f"  Error: {e}")
+            logger.error(f"  Cipher configured: {CIPHERS}")
+            logger.error(f"  SSL module version: {ssl.OPENSSL_VERSION}")
+            # Check if OP_LEGACY_SERVER_CONNECT is available
+            if hasattr(ssl, 'OP_LEGACY_SERVER_CONNECT'):
+                logger.error(f"  OP_LEGACY_SERVER_CONNECT: available")
+            else:
+                logger.error(f"  OP_LEGACY_SERVER_CONNECT: NOT AVAILABLE - this may be the issue!")
+            raise
+
         # Parse the response xml looking for the passed in element names
         root = ET.fromstring(x.text)
         hw_info_dict = {}
@@ -129,8 +193,10 @@ class xcelMeter():
         """
         session = requests.Session()
         session.cert = creds
-        # Mount our adapter to the domain
-        session.mount('https://{ip_address}', CCM8Adapter())
+        # Mount our adapter to the domain, passing the client cert/key
+        # creds is a tuple of (cert_file, key_file)
+        cert_file, key_file = creds
+        session.mount(f'https://{ip_address}', CCM8Adapter(cert_file=cert_file, key_file=key_file))
 
         return session
 
@@ -194,6 +260,10 @@ class xcelMeter():
         if mqtt_username and mqtt_password:
             client.username_pw_set(mqtt_username, mqtt_password)
         client.on_connect = on_connect
+        logging.info(f"MQTT connection details:")
+        logging.info(f"MQTT_ADDRESS: {mqtt_server_address}")
+        logging.info(f"MQTT_PORT: {mqtt_port}")
+        logging.info(f"MQTT_USER: {mqtt_username}")
         client.connect(mqtt_server_address, mqtt_port)
         client.loop_start()
 
@@ -217,7 +287,8 @@ class xcelMeter():
 
         Returns: None
         """
-        state_topic = f'homeassistant/device/energy/{self.name.replace(" ", "_").lower()}'
+        mqtt_topic_prefix = os.getenv('MQTT_TOPIC_PREFIX', 'homeassistant')
+        state_topic = f'{mqtt_topic_prefix}/device/energy/{self.name.replace(" ", "_").lower()}'
         config_dict = {
             "name": self.name,
             "device_class": "energy",
@@ -227,9 +298,16 @@ class xcelMeter():
         config_dict.update(self.device_info)
         config_json = json.dumps(config_dict)
         logging.debug(f"Sending MQTT Discovery Payload")
-        logging.debug(f"TOPIC: {state_topic}")
-        logging.debug(f"Config: {config_json}")
-        self.mqtt_client.publish(state_topic, str(config_json))
+
+        result = self.mqtt_client.publish(state_topic, str(config_json))
+        if result.rc == mqtt.MQTT_ERR_SUCCESS:
+            logging.debug(f"MQTT discovery payload published successfully (mid: {result.mid})")
+            logging.debug(f"TOPIC: {state_topic}")
+            logging.debug(f"Config: {config_json}")
+        elif result.rc == mqtt.MQTT_ERR_NO_CONN:
+            logging.error(f"MQTT publish failed: Not connected to broker")
+        else:
+            logging.error(f"MQTT publish failed with return code: {result.rc}")
 
     def run(self) -> None:
         """

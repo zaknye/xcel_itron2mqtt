@@ -9,3 +9,6 @@ certs
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Local development scripts
+hack/

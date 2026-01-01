@@ -86,6 +86,60 @@ docker run --rm -it \
 ```
 
 Alternatively, the `docker-compose.yaml` will allow you to bring a up an ephemeral MQTT broker along with the xcel_itron2mqtt container. Simply copy `.env.sample` to `.env`, update variables there as needed, and run `docker compose up`. You can then use `docker exec -it xcel_itron2mqtt /bin/bash` to attach to the running container.
+
+## Troubleshooting
+
+### Verifying MQTT User Permissions
+
+If messages aren't appearing in your MQTT broker, verify that your MQTT user has the correct read/write permissions.
+
+**1. Test MQTT publish/subscribe functionality:**
+
+These examples use the [mosquitto](https://mosquitto.org) client, but any MQTT client will likely work.
+
+In one terminal, start a subscriber:
+```bash
+mosquitto_sub -h localhost -t "test/topic" -u your_mqtt_user -P your_password
+```
+
+In another terminal, publish a test message:
+```bash
+mosquitto_pub -h localhost -t "test/topic" -m "test message" -u your_mqtt_user -P your_password
+```
+
+If the subscriber receives the message, your MQTT user has proper permissions.
+
+**2. Check ACL configuration:**
+
+If messages aren't being received, check your Mosquitto ACL file (typically `/etc/mosquitto/acl.conf` or similar). Your user needs read/write access to the topics:
+
+```
+user your_mqtt_user
+topic readwrite #
+```
+
+The `#` wildcard grants access to all topics. For more restrictive access, specify the topic prefix:
+```
+user your_mqtt_user
+topic readwrite homeassistant/#
+```
+
+**3. Reload Mosquitto after configuration changes:**
+
+After modifying ACL or password files, restart Mosquitto to apply changes:
+```bash
+sudo systemctl restart mosquitto
+```
+
+Or reload the configuration without full restart:
+```bash
+sudo systemctl reload mosquitto
+```
+
+**4. Enable debug logging:**
+
+Set `LOGLEVEL=DEBUG` in your environment to see detailed MQTT publish attempts and responses.
+
 ## Contributing
 
 Please feel free to create an issue with a feature request, bug, or any other comments you have on the software found here.

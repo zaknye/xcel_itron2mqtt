@@ -28,7 +28,7 @@ class xcelEndpoint():
         self.client = mqtt_client
         self.device_info = device_info
 
-        self._mqtt_topic_prefix = os.getenv('MQTT_TOPIC_PREFIX', 'homeassistant/')
+        self._mqtt_topic_prefix = os.getenv('MQTT_TOPIC_PREFIX', 'homeassistant')
         self._current_response = None
         self._mqtt_topic = None
         # Record all of the sensor state topics in an easy to lookup dict
@@ -103,14 +103,14 @@ class xcelEndpoint():
         payload = deepcopy(details)
         mqtt_friendly_name = self.name.replace(" ", "_")
         entity_type = payload.pop('entity_type')
-        payload["state_topic"] = f'{self._mqtt_topic_prefix}{entity_type}/{mqtt_friendly_name}/{sensor_name}/state'
+        payload["state_topic"] = f'{self._mqtt_topic_prefix}/{entity_type}/{mqtt_friendly_name}/{sensor_name}/state'
         payload['name'] = f'{self.name} {sensor_name}'
         # Mouthful
         # Unique ID becomes the device name + class name + sensor name, all lower case, all underscores instead of spaces
         payload['unique_id'] = f"{self.device_info['device']['name']}_{self.name}_{sensor_name}".lower().replace(' ', '_')
         payload.update(self.device_info)
         # MQTT Topics don't like spaces
-        mqtt_topic = f'{self._mqtt_topic_prefix}{entity_type}/{mqtt_friendly_name}/{sensor_name}/config'
+        mqtt_topic = f'{self._mqtt_topic_prefix}/{entity_type}/{mqtt_friendly_name}/{sensor_name}/config'
         # Capture the state topic the sensor is associated with for later use
         self._sensor_state_topics[sensor_name] = payload['state_topic']
         payload = json.dumps(payload)
@@ -161,17 +161,21 @@ class xcelEndpoint():
     def mqtt_publish(self, topic: str, message: str, retain=False) -> int:
         """
         Publish the given message to the topic associated with the class
-       
-        Returns: integer
+
+        Returns: integer (return code)
         """
-        result = [0]
-        #print(f"Sending to MQTT TOPIC:\t{topic}")
-        #print(f"Payload:\t\t{message}")
         result = self.client.publish(topic, str(message), retain=retain)
-        #print('Error in sending MQTT payload')
-        #print(f"MQTT Send Result: \t\t{result}")
-        # Return status of the published message
-        return result[0]
+
+        # Check the return code and log appropriately
+        if result.rc == mqtt.MQTT_ERR_SUCCESS:
+            logger.debug(f"Published to {topic} (mid: {result.mid})")
+        elif result.rc == mqtt.MQTT_ERR_NO_CONN:
+            logger.error(f"MQTT publish to {topic} failed: Not connected to broker")
+        else:
+            logger.error(f"MQTT publish to {topic} failed with return code: {result.rc}")
+
+        # Return status of the published message (backwards compatibility)
+        return result.rc
 
     def run(self) -> None:
         """
