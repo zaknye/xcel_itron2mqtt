@@ -153,27 +153,32 @@ class xcelMeter():
         self.initalized = True
 
     @staticmethod
-    def select_endpoint_version(supported_endpoint_versions: dict, meter_sw_version: str) -> str:
+    def select_endpoint_version(supported_endpoint_versions: list, meter_sw_version: str) -> str:
         # Sort the versions lowest to highest
-        supported_versions_sorted = dict(sorted(supported_endpoint_versions.items(), key=lambda item: Version(item[0])))
+        supported_versions_sorted =  sorted(supported_endpoint_versions)
 
         # Find the highest version of config that
         selected_version = None
         meter_sw_version = Version(meter_sw_version)
-        for version, config_file_path in supported_versions_sorted.items():
+        for version in supported_versions_sorted:
             if meter_sw_version < version:
                 continue
             if meter_sw_version.major != version.major:
                 continue
-            if meter_sw_version.major != version.minor:
+            if meter_sw_version.minor != version.minor:
                 continue
             if meter_sw_version >= version:
                 selected_version = version
+        # Looks like we don't support a version this low, default to lowest supported?
+        if selected_version is None:
+            selected_version = supported_versions_sorted[0]
+            logger.error(f'Supported versions failed to find a match with meter version: {meter_sw_version}')
+            logger.error(f'Defaulting to using the lowest version for compatability: {selected_version}')
         config_version_path = str(selected_version).replace('.', '_')
         return config_version_path
 
     @staticmethod
-    def identify_config_version_support(config_path: str) -> dict[Version, str]:
+    def identify_config_version_support(config_path: str) -> list[Version]:
         """
         Looks through the local config directory to identify which sw versions
         we support.
@@ -182,11 +187,11 @@ class xcelMeter():
         """
         # Find all endpoint versions supported
         endpoint_file_paths = Path(config_path).glob("*.yaml")
-        supported_endpoint_versions = {}
+        supported_endpoint_versions = []
         for file_path in endpoint_file_paths:
-            endpoint_version_path = Path(endpoint_file_paths).stem.replace('_', '.')
+            endpoint_version_path = Path(file_path).stem.replace('endpoints_', '').replace('_', '.')
             endpoint_version = Version(endpoint_version_path)
-            supported_endpoint_versions[endpoint_version] = file_path
+            supported_endpoint_versions.append(endpoint_version)
         return supported_endpoint_versions
 
     def get_hardware_details(self, hw_info_url: str, hw_names: list) -> dict:
