@@ -8,6 +8,8 @@ import paho.mqtt.client as mqtt
 import xml.etree.ElementTree as ET
 from time import sleep
 from typing import Tuple
+from pathlib import Path
+from packaging.version import Version
 from requests.packages.urllib3.util.ssl_ import create_urllib3_context
 from requests.adapters import HTTPAdapter
 from tenacity import retry, stop_after_attempt, before_sleep_log, wait_exponential
@@ -139,7 +141,8 @@ class xcelMeter():
         self.send_mqtt_config()
 
         # The swVer will dictate which version of endpoints we use
-        endpoints_file_ver = 'default' if str(self._swVer) != '3.2.39' else '3_2_39'
+        supported_endpoint_versions = self.identify_config_version_support('configs/')
+        endpoints_file_ver = self.select_endpoint_version(supported_endpoint_versions, self._swVer)
         # List to store our endpoint objects in
         self.endpoints_list = self.load_endpoints(f'configs/endpoints_{endpoints_file_ver}.yaml')
 
@@ -148,6 +151,43 @@ class xcelMeter():
 
         # ready to go
         self.initalized = True
+
+    @staticmethod
+    def select_endpoint_version(supported_endpoint_versions: dict, meter_sw_version: str) -> str:
+        # Sort the versions lowest to highest
+        supported_versions_sorted = dict(sorted(supported_endpoint_versions.items(), key=lambda item: Version(item[0])))
+
+        # Find the highest version of config that
+        selected_version = None
+        meter_sw_version = Version(meter_sw_version)
+        for version, config_file_path in supported_versions_sorted.items():
+            if meter_sw_version < version:
+                continue
+            if meter_sw_version.major != version.major:
+                continue
+            if meter_sw_version.major != version.minor:
+                continue
+            if meter_sw_version >= version:
+                selected_version = version
+        config_version_path = str(selected_version).replace('.', '_')
+        return config_version_path
+
+    @staticmethod
+    def identify_config_version_support(config_path: str) -> dict[Version, str]:
+        """
+        Looks through the local config directory to identify which sw versions
+        we support.
+
+        Returns: dict, {<config version>: <file path>}
+        """
+        # Find all endpoint versions supported
+        endpoint_file_paths = Path(config_path).glob("*.yaml")
+        supported_endpoint_versions = {}
+        for file_path in endpoint_file_paths:
+            endpoint_version_path = Path(endpoint_file_paths).stem.replace('_', '.')
+            endpoint_version = Version(endpoint_version_path)
+            supported_endpoint_versions[endpoint_version] = file_path
+        return supported_endpoint_versions
 
     def get_hardware_details(self, hw_info_url: str, hw_names: list) -> dict:
         """
