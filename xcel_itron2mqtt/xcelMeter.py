@@ -111,8 +111,35 @@ class xcelMeter():
 
         # Set to uninitialized
         self.initalized = False
-        # Initialize meter class
-        self._setup()
+        # XML Entries we're looking for within the endpoint
+        hw_info_names = ['lFDI', 'swVer', 'mfID']
+        # Endpoint of the meter used for HW info
+        hw_info_url = '/sdev/sdi'
+        # Query the meter to get some more details about it
+        details_dict = self._get_hardware_details(hw_info_url, hw_info_names)
+        self._mfid = details_dict['mfID']
+        self._lfdi = details_dict['lFDI']
+        self._swVer = details_dict['swVer']
+        # Device info used for home assistant MQTT discovery
+        self.device_info = {
+                            "device": {
+                                "identifiers": [self._lfdi],
+                                "name": self.name,
+                                "model": self._mfid,
+                                "sw_version": self._swVer
+                                }
+                            }
+        # Send homeassistant a new device config for the meter
+        self._send_mqtt_config()
+        # The swVer will dictate which version of endpoints we use
+        supported_endpoint_versions = self._identify_config_version_support('configs/')
+        endpoints_file_ver = self._select_endpoint_version(supported_endpoint_versions, self._swVer)
+        # List to store our endpoint objects in
+        self.endpoints_list = self._load_endpoints(f'configs/endpoints_{endpoints_file_ver}.yaml')
+        # create endpoints from list
+        self.endpoints = self._create_endpoints(self.endpoints_list, self.device_info)
+        # ready to go
+        self.initalized = True
 
     @staticmethod
     def _select_endpoint_version(supported_endpoint_versions: list, meter_sw_version: str) -> str:
@@ -243,7 +270,11 @@ class xcelMeter():
 
         return client
 
-    def get_hardware_details(self, hw_info_url: str, hw_names: list) -> dict:
+    @retry(stop=stop_after_attempt(5),
+           wait=wait_exponential(multiplier=1, min=1, max=15),
+           before_sleep=before_sleep_log(logger, logging.WARNING),
+           reraise=True)
+    def _get_hardware_details(self, hw_info_url: str, hw_names: list) -> dict:
         """
         Queries the meter hardware endpoint at the ip address passed
         to the class.
@@ -304,51 +335,6 @@ class xcelMeter():
             logging.error(f"MQTT publish failed: Not connected to broker")
         else:
             logging.error(f"MQTT publish failed with return code: {result.rc}")
-
-    @retry(stop=stop_after_attempt(15),
-           wait=wait_exponential(multiplier=1, min=1, max=15),
-           before_sleep=before_sleep_log(logger, logging.WARNING),
-           reraise=True)
-    def _setup(self) -> None:
-        """
-        Queries the meter for HW details, identifies config version to use,
-        and initializes the meter class.
-
-        Returns: None
-        """
-        # XML Entries we're looking for within the endpoint
-        hw_info_names = ['lFDI', 'swVer', 'mfID']
-        # Endpoint of the meter used for HW info
-        hw_info_url = '/sdev/sdi'
-        # Query the meter to get some more details about it
-        details_dict = self.get_hardware_details(hw_info_url, hw_info_names)
-        self._mfid = details_dict['mfID']
-        self._lfdi = details_dict['lFDI']
-        self._swVer = details_dict['swVer']
-
-        # Device info used for home assistant MQTT discovery
-        self.device_info = {
-                            "device": {
-                                "identifiers": [self._lfdi],
-                                "name": self.name,
-                                "model": self._mfid,
-                                "sw_version": self._swVer
-                                }
-                            }
-        # Send homeassistant a new device config for the meter
-        self._send_mqtt_config()
-
-        # The swVer will dictate which version of endpoints we use
-        supported_endpoint_versions = self._identify_config_version_support('configs/')
-        endpoints_file_ver = self._select_endpoint_version(supported_endpoint_versions, self._swVer)
-        # List to store our endpoint objects in
-        self.endpoints_list = self._load_endpoints(f'configs/endpoints_{endpoints_file_ver}.yaml')
-
-        # create endpoints from list
-        self.endpoints = self._create_endpoints(self.endpoints_list, self.device_info)
-
-        # ready to go
-        self.initalized = True
 
     def run(self) -> None:
         """

@@ -182,6 +182,30 @@
         device_class: energy
         unit_of_measurement: Wh
         state_class: total
+- Max Demand Received:
+    url: '/upt/1/mr/17/r'
+    tags:
+      value:
+        entity_type: sensor
+        device_class: power
+        unit_of_measurement: W
+        state_class: measurement
+- Max Demand Received:
+    url: '/upt/1/mr/17/r'
+    tags:
+      value:
+        entity_type: sensor
+        device_class: power
+        unit_of_measurement: W
+        state_class: measurement
+- Max Demand Delivered:
+    url: '/upt/1/mr/18/r'
+    tags:
+      value:
+        entity_type: sensor
+        device_class: power
+        unit_of_measurement: W
+        state_class: measurement
 - Power Factor:
     url: '/upt/1/mr/19/r'
     tags:
