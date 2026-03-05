@@ -1,22 +1,24 @@
-version: "3.7"
-
 services:
-  mqtt:
-    image: emqx/nanomq
-    container_name: nanomq
-    ports:
-      - "1883:1883"
-  xcel_itron2mqtt:
-    container_name: xcel_itron2mqtt
-    build:
-      context: .
-      dockerfile: Dockerfile
-    depends_on:
-      - mqtt
+  mosquitto:
+    image: eclipse-mosquitto
+    restart: unless-stopped
     volumes:
-      - certs:/opt/xcel_itron2mqtt/certs
+      - /srv/docker/mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - /srv/docker/mosquitto/log:/mosquitto/log
+      - /srv/docker/mosquitto/data:/mosquitto/data
+      - /srv/docker/mosquitto/config/mosquitto.passwd:/mosquitto/config/mosquitto.passwd
+    networks:
+      - main
+    ports:
+      - 1883:1883
+      - 9001:9001
+  xcel_itron2mqtt:
+    image: "ghcr.io/zaknye/xcel_itron2mqtt:latest"
+    restart: unless-stopped
+    volumes:
+      - ~/xcel_itron2mqtt/certs:/opt/xcel_itron2mqtt/certs
     environment:
-      MQTT_SERVER: mqtt
-      METER_PORT: 8081
-    env_file:
-      - .env
+      - MQTT_SERVER=127.0.0.1
+      - METER_IP=<Local IP>
+      - METER_PORT=8081
+    network_mode: host

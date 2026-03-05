@@ -9,3 +9,4 @@ zeroconf==0.47.3
 pyyaml==6.0.1
 paho-mqtt==1.6.1
 tenacity==8.2.3
+packaging==26.0

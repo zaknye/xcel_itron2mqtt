@@ -51,15 +51,15 @@ mosquitto:
   image: eclipse-mosquitto
   ...
 xcel_itron2mqtt:
-    image: ghcr.io/zaknye/xcel_itron2mqtt:main
-    restart: unless-stopped
-    volumes:
-      - ~/xcel_itron2mqtt/certs:/opt/xcel_itron2mqtt/certs
-    network_mode: host
-    links:
-      - mosquitto
-    environment:
-      - MQTT_SERVER=mosquitto
+  image: "ghcr.io/zaknye/xcel_itron2mqtt:latest"
+  restart: unless-stopped
+  volumes:
+    - ~/xcel_itron2mqtt/certs:/opt/xcel_itron2mqtt/certs
+  environment:
+    - MQTT_SERVER=127.0.0.1
+    - METER_IP=<Local IP>
+    - METER_PORT=8081
+  network_mode: host
 ```
 
 See the `docker-compose.yaml` file for a working example
@@ -70,7 +70,7 @@ docker run --rm -d \
     --net host \
     -e MQTT_SERVER=<IP_ADDRESS> \
     -v <path_to_cert_folder>:/opt/xcel_itron2mqtt/certs \
-    ghcr.io/zaknye/xcel_itron2mqtt:main
+    ghcr.io/zaknye/xcel_itron2mqtt:latest
 ```
 > The easiest way currently to pass through mDNS to the container is to use host networking.
 >
@@ -82,7 +82,7 @@ docker run --rm -it \
     --net host \
     -v `pwd`:/opt/xcel_itron2mqtt \
     --entrypoint /bin/sh \
-    ghcr.io/zaknye/xcel_itron2mqtt:main
+    ghcr.io/zaknye/xcel_itron2mqtt:latest
 ```
 
 Alternatively, the `docker-compose.yaml` will allow you to bring a up an ephemeral MQTT broker along with the xcel_itron2mqtt container. Simply copy `.env.sample` to `.env`, update variables there as needed, and run `docker compose up`. You can then use `docker exec -it xcel_itron2mqtt /bin/bash` to attach to the running container.

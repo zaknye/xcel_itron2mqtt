@@ -16,10 +16,10 @@ IEEE_PREFIX = '{urn:ieee:std:2030.5:ns}'
 class xcelEndpoint():
     """
     Class wrapper for all readings associated with the Xcel meter.
-    Expects a request session that should be shared amongst the 
+    Expects a request session that should be shared amongst the
     instances.
     """
-    def __init__(self, session: requests.Session, mqtt_client: mqtt.Client, 
+    def __init__(self, session: requests.Session, mqtt_client: mqtt.Client,
                     url: str, name: str, tags: list, device_info: dict):
         self.requests_session = session
         self.url = url
@@ -35,7 +35,7 @@ class xcelEndpoint():
         self._sensor_state_topics = {}
 
         # Setup the rest of what we need for this endpoint
-        self.mqtt_send_config()
+        self._mqtt_send_config()
 
     @retry(stop=stop_after_attempt(15),
            wait=wait_exponential(multiplier=1, min=1, max=15),
@@ -43,13 +43,13 @@ class xcelEndpoint():
            reraise=True)
     def query_endpoint(self) -> str:
         """
-        Sends a request to the given endpoint associated with the 
+        Sends a request to the given endpoint associated with the
         object instance
 
         Returns: str in XML format of the meter's response
         """
         x = self.requests_session.get(self.url, verify=False, timeout=15.0)
-    
+
         return x.text
 
     @staticmethod
@@ -77,22 +77,22 @@ class xcelEndpoint():
                 if root.find(f'.//{IEEE_PREFIX}{k}') is not None:
                     value = root.find(f'.//{IEEE_PREFIX}{k}').text
                     readings_dict[k] = value
-    
+
         return readings_dict
 
-    def get_reading(self) -> dict:
+    def _get_reading(self) -> dict:
         """
         Query the endpoint associated with the object instance and
         return the parsed XML response in the form of a dictionary
-        
+
         Returns: Dict in the form of {reading: value}
         """
         response = self.query_endpoint()
-        self.current_response = self.parse_response(response, self.tags)
+        self._current_response = self.parse_response(response, self.tags)
 
-        return self.current_response
+        return self._current_response
 
-    def create_config(self, sensor_name: str,  details: dict) -> tuple[str, dict]:
+    def _create_config(self, sensor_name: str,  details: dict) -> tuple[str, dict]:
         """
         Helper to generate the JSON sonfig payload for setting
         up the new Homeassistant entities
@@ -117,7 +117,7 @@ class xcelEndpoint():
 
         return mqtt_topic, payload
 
-    def mqtt_send_config(self) -> None:
+    def _mqtt_send_config(self) -> None:
         """
         Homeassistant requires a config payload to be sent to more
         easily setup the sensor/device once it appears over mqtt
@@ -129,15 +129,15 @@ class xcelEndpoint():
                 for val_items in v:
                     name, details = val_items.popitem()
                     sensor_name = f'{k}{name}'
-                    mqtt_topic, payload = self.create_config(sensor_name, details)
+                    mqtt_topic, payload = self._create_config(sensor_name, details)
                     # Send MQTT payload
-                    self.mqtt_publish(mqtt_topic, str(payload))
+                    self._mqtt_publish(mqtt_topic, str(payload))
             else:
                 name_suffix = f'{k[0].upper()}'
-                mqtt_topic, payload = self.create_config(k, v)
-                self.mqtt_publish(mqtt_topic, str(payload), retain=True)
+                mqtt_topic, payload = self._create_config(k, v)
+                self._mqtt_publish(mqtt_topic, str(payload), retain=True)
 
-    def process_send_mqtt(self, reading: dict) -> None:
+    def _process_send_mqtt(self, reading: dict) -> None:
         """
         Run through the readings from the meter and translate
         and prepare these readings to send over mqtt
@@ -156,9 +156,9 @@ class xcelEndpoint():
 
         # Cycle through and send the payload to the associated keys
         for topic, payload in mqtt_topic_message.items():
-            self.mqtt_publish(topic, payload)
+            self._mqtt_publish(topic, payload)
 
-    def mqtt_publish(self, topic: str, message: str, retain=False) -> int:
+    def _mqtt_publish(self, topic: str, message: str, retain=False) -> int:
         """
         Publish the given message to the topic associated with the class
 
@@ -184,5 +184,5 @@ class xcelEndpoint():
 
         Returns: None
         """
-        reading = self.get_reading()
-        self.process_send_mqtt(reading)
+        reading = self._get_reading()
+        self._process_send_mqtt(reading)

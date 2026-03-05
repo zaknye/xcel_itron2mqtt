@@ -25,7 +25,7 @@
         unit_of_measurement: Wh
         state_class: total
 - Current Summation Delivered:
-    url: '/upt/1/mr/3/rs/8/r/1'
+    url: '/upt/1/mr/3/rs/1/r/1'
     tags:
       timePeriod:
         - duration:
@@ -115,7 +115,7 @@
         unit_of_measurement: Wh
         state_class: total
 - TOU 2 WH Delivered:
-    url: '/upt/1/mr/9/rs/1/r/3 '
+    url: '/upt/1/mr/9/rs/1/r/3'
     tags:
       timePeriod:
         - duration:
@@ -212,5 +212,5 @@
       value:
         entity_type: sensor
         device_class: power_factor
-        unit_of_measurement: %
+        value_template: '{{ float( value ) * 0.001 }}'
         state_class: measurement
