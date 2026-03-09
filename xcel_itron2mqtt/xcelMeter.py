@@ -18,6 +18,9 @@ from tenacity import retry, stop_after_attempt, before_sleep_log, wait_exponenti
 from xcelEndpoint import xcelEndpoint
 
 IEEE_PREFIX = '{urn:ieee:std:2030.5:ns}'
+# Stuffing the IEEE spec here for reference
+# https://zepben.github.io/evolve/docs/2030-5/
+
 # Our target cipher is: ECDHE-ECDSA-AES128-CCM8
 # Security level 0 is required to allow CCM8 ciphers in OpenSSL 3.x
 CIPHERS = 'ECDHE-ECDSA-AES128-CCM8:@SECLEVEL=0'

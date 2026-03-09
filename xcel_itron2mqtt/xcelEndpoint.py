@@ -1,8 +1,8 @@
-import yaml
 import os
+import yaml
 import json
-import requests
 import logging
+import requests
 import paho.mqtt.client as mqtt
 import xml.etree.ElementTree as ET
 from copy import deepcopy
@@ -29,7 +29,6 @@ class xcelEndpoint():
         self.device_info = device_info
 
         self._mqtt_topic_prefix = os.getenv('MQTT_TOPIC_PREFIX', 'homeassistant')
-        self._current_response = None
         self._mqtt_topic = None
         # Record all of the sensor state topics in an easy to lookup dict
         self._sensor_state_topics = {}
@@ -88,9 +87,9 @@ class xcelEndpoint():
         Returns: Dict in the form of {reading: value}
         """
         response = self.query_endpoint()
-        self._current_response = self.parse_response(response, self.tags)
+        parsed_response = self.parse_response(response, self.tags)
 
-        return self._current_response
+        return parsed_response
 
     def _create_config(self, sensor_name: str,  details: dict) -> tuple[str, dict]:
         """
