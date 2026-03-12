@@ -8,6 +8,8 @@ import paho.mqtt.client as mqtt
 import xml.etree.ElementTree as ET
 from time import sleep
 from typing import Tuple
+from pathlib import Path
+from packaging.version import Version
 from requests.packages.urllib3.util.ssl_ import create_urllib3_context
 from requests.adapters import HTTPAdapter
 from tenacity import retry, stop_after_attempt, before_sleep_log, wait_exponential
@@ -16,6 +18,9 @@ from tenacity import retry, stop_after_attempt, before_sleep_log, wait_exponenti
 from xcelEndpoint import xcelEndpoint
 
 IEEE_PREFIX = '{urn:ieee:std:2030.5:ns}'
+# Stuffing the IEEE spec here for reference
+# https://zepben.github.io/evolve/docs/2030-5/
+
 # Our target cipher is: ECDHE-ECDSA-AES128-CCM8
 # Security level 0 is required to allow CCM8 ciphers in OpenSSL 3.x
 CIPHERS = 'ECDHE-ECDSA-AES128-CCM8:@SECLEVEL=0'
@@ -93,7 +98,6 @@ class CCM8Adapter(HTTPAdapter):
         return context
 
 class xcelMeter():
-
     def __init__(self, name: str, ip_address: str, port: int, creds: Tuple[str, str]):
         self.name = name
         self.POLLING_RATE = 5.0
@@ -103,29 +107,22 @@ class xcelMeter():
         # Setup the MQTT server connection
         self.mqtt_server_address = os.getenv('MQTT_SERVER')
         self.mqtt_port = self.get_mqtt_port()
-        self.mqtt_client = self.setup_mqtt(self.mqtt_server_address, self.mqtt_port)
+        self.mqtt_client = self._setup_mqtt(self.mqtt_server_address, self.mqtt_port)
 
         # Create a new requests session based on the passed in ip address and port #
-        self.requests_session = self.setup_session(creds, ip_address)
+        self.requests_session = self._setup_session(creds, ip_address)
 
         # Set to uninitialized
         self.initalized = False
-
-    @retry(stop=stop_after_attempt(15),
-           wait=wait_exponential(multiplier=1, min=1, max=15),
-           before_sleep=before_sleep_log(logger, logging.WARNING),
-           reraise=True)
-    def setup(self) -> None:
         # XML Entries we're looking for within the endpoint
         hw_info_names = ['lFDI', 'swVer', 'mfID']
         # Endpoint of the meter used for HW info
         hw_info_url = '/sdev/sdi'
         # Query the meter to get some more details about it
-        details_dict = self.get_hardware_details(hw_info_url, hw_info_names)
+        details_dict = self._get_hardware_details(hw_info_url, hw_info_names)
         self._mfid = details_dict['mfID']
         self._lfdi = details_dict['lFDI']
         self._swVer = details_dict['swVer']
-
         # Device info used for home assistant MQTT discovery
         self.device_info = {
                             "device": {
@@ -136,20 +133,151 @@ class xcelMeter():
                                 }
                             }
         # Send homeassistant a new device config for the meter
-        self.send_mqtt_config()
-
+        self._send_mqtt_config()
         # The swVer will dictate which version of endpoints we use
-        endpoints_file_ver = 'default' if str(self._swVer) != '3.2.39' else '3_2_39'
+        supported_endpoint_versions = self._identify_config_version_support('configs/')
+        endpoints_file_ver = self._select_endpoint_version(supported_endpoint_versions, self._swVer)
         # List to store our endpoint objects in
-        self.endpoints_list = self.load_endpoints(f'configs/endpoints_{endpoints_file_ver}.yaml')
-
+        self.endpoints_list = self._load_endpoints(f'configs/endpoints_{endpoints_file_ver}.yaml')
         # create endpoints from list
-        self.endpoints = self.create_endpoints(self.endpoints_list, self.device_info)
-
+        self.endpoints = self._create_endpoints(self.endpoints_list, self.device_info)
         # ready to go
         self.initalized = True
 
-    def get_hardware_details(self, hw_info_url: str, hw_names: list) -> dict:
+    @staticmethod
+    def _select_endpoint_version(supported_endpoint_versions: list, meter_sw_version: str) -> str:
+
+        # Sort the versions lowest to highest
+        supported_versions_sorted =  sorted(supported_endpoint_versions)
+
+        # Find the highest version of config that
+        selected_version = None
+        meter_sw_version = Version(meter_sw_version)
+        for version in supported_versions_sorted:
+            if meter_sw_version < version:
+                continue
+            if meter_sw_version.major != version.major:
+                continue
+            if meter_sw_version.minor != version.minor:
+                continue
+            if meter_sw_version >= version:
+                selected_version = version
+        # Looks like we don't support a version this low, default to lowest supported?
+        if selected_version is None:
+            selected_version = supported_versions_sorted[0]
+            logger.error(f'Supported versions failed to find a match with meter version: {meter_sw_version}')
+            logger.error(f'Defaulting to using the lowest version for compatability: {selected_version}')
+        config_version_path = str(selected_version).replace('.', '_')
+        return config_version_path
+
+    @staticmethod
+    def _identify_config_version_support(config_path: str) -> list[Version]:
+        """
+        Looks through the local config directory to identify which sw versions
+        we support.
+
+        Returns: list, [<config version>, ...]
+        """
+        # Find all endpoint versions supported
+        endpoint_file_paths = Path(config_path).glob("*.yaml")
+        supported_endpoint_versions = []
+        for file_path in endpoint_file_paths:
+            endpoint_version_path = Path(file_path).stem.replace('endpoints_', '').replace('_', '.')
+            endpoint_version = Version(endpoint_version_path)
+            supported_endpoint_versions.append(endpoint_version)
+        return supported_endpoint_versions
+
+    @staticmethod
+    def _setup_session(creds: tuple, ip_address: str) -> requests.Session:
+        """
+        Creates a new requests session with the given credentials pointed
+        at the give IP address. Will be shared across each xcelQuery object.
+
+        Returns: request.session
+        """
+        session = requests.Session()
+        session.cert = creds
+        # Mount our adapter to the domain, passing the client cert/key
+        # creds is a tuple of (cert_file, key_file)
+        cert_file, key_file = creds
+        session.mount(f'https://{ip_address}', CCM8Adapter(cert_file=cert_file, key_file=key_file))
+
+        return session
+
+    @staticmethod
+    def _load_endpoints(file_path: str) -> list:
+        """
+        Loads the yaml file passed containing meter endpoint information
+
+        Returns: list
+        """
+        with open(file_path, mode='r', encoding='utf-8') as file:
+            endpoints = yaml.safe_load(file)
+
+        return endpoints
+
+    def _create_endpoints(self, endpoints: dict, device_info: dict) -> None:
+        # Build query objects for each endpoint
+        query_obj = []
+        for point in endpoints:
+            for endpoint_name, v in point.items():
+                request_url = f'{self.url}{v["url"]}'
+                query_obj.append(xcelEndpoint(self.requests_session, self.mqtt_client,
+                                    request_url, endpoint_name, v['tags'], device_info))
+
+        return query_obj
+
+    @staticmethod
+    def get_mqtt_port() -> int:
+        """
+        Identifies the port to use for the MQTT server. Very basic,
+        just offers a detault of 1883 if no other port is set
+
+        Returns: int
+        """
+        env_port = os.getenv('MQTT_PORT')
+        # If environment variable for MQTT port is set, use that
+        # if not, use the default
+        mqtt_port = int(env_port) if env_port else 1883
+
+        return mqtt_port
+
+    @staticmethod
+    def _setup_mqtt(mqtt_server_address: str, mqtt_port: int) -> mqtt.Client:
+        """
+        Creates a new mqtt client to be used for the the xcelQuery
+        objects.
+
+        Returns: mqtt.Client object
+        """
+        def on_connect(client, userdata, flags, rc):
+            if rc == 0:
+                logging.info("Connected to MQTT Broker!")
+            else:
+                logging.error("Failed to connect, return code %d\n", rc)
+
+        # Check if a username/PW is setup for the MQTT connection
+        mqtt_username = os.getenv('MQTT_USER')
+        mqtt_password = os.getenv('MQTT_PASSWORD')
+        # If no env variable was set, skip setting creds?
+        client = mqtt.Client()
+        if mqtt_username and mqtt_password:
+            client.username_pw_set(mqtt_username, mqtt_password)
+        client.on_connect = on_connect
+        logging.info(f"MQTT connection details:")
+        logging.info(f"MQTT_ADDRESS: {mqtt_server_address}")
+        logging.info(f"MQTT_PORT: {mqtt_port}")
+        logging.info(f"MQTT_USER: {mqtt_username}")
+        client.connect(mqtt_server_address, mqtt_port)
+        client.loop_start()
+
+        return client
+
+    @retry(stop=stop_after_attempt(5),
+           wait=wait_exponential(multiplier=1, min=1, max=15),
+           before_sleep=before_sleep_log(logger, logging.WARNING),
+           reraise=True)
+    def _get_hardware_details(self, hw_info_url: str, hw_names: list) -> dict:
         """
         Queries the meter hardware endpoint at the ip address passed
         to the class.
@@ -183,105 +311,7 @@ class xcelMeter():
 
         return hw_info_dict
 
-    @staticmethod
-    def setup_session(creds: tuple, ip_address: str) -> requests.Session:
-        """
-        Creates a new requests session with the given credentials pointed
-        at the give IP address. Will be shared across each xcelQuery object.
-
-        Returns: request.session
-        """
-        session = requests.Session()
-        session.cert = creds
-        # Mount our adapter to the domain, passing the client cert/key
-        # creds is a tuple of (cert_file, key_file)
-        cert_file, key_file = creds
-        session.mount(f'https://{ip_address}', CCM8Adapter(cert_file=cert_file, key_file=key_file))
-
-        return session
-
-    @staticmethod
-    def load_endpoints(file_path: str) -> list:
-        """
-        Loads the yaml file passed containing meter endpoint information
-
-        Returns: list
-        """
-        with open(file_path, mode='r', encoding='utf-8') as file:
-            endpoints = yaml.safe_load(file)
-
-        return endpoints
-
-    def create_endpoints(self, endpoints: dict, device_info: dict) -> None:
-        # Build query objects for each endpoint
-        query_obj = []
-        for point in endpoints:
-            for endpoint_name, v in point.items():
-                request_url = f'{self.url}{v["url"]}'
-                query_obj.append(xcelEndpoint(self.requests_session, self.mqtt_client,
-                                    request_url, endpoint_name, v['tags'], device_info))
-
-        return query_obj
-
-    @staticmethod
-    def get_mqtt_port() -> int:
-        """
-        Identifies the port to use for the MQTT server. Very basic,
-        just offers a detault of 1883 if no other port is set
-
-        Returns: int
-        """
-        env_port = os.getenv('MQTT_PORT')
-        # If environment variable for MQTT port is set, use that
-        # if not, use the default
-        mqtt_port = int(env_port) if env_port else 1883
-
-        return mqtt_port
-
-    @staticmethod
-    def setup_mqtt(mqtt_server_address, mqtt_port) -> mqtt.Client:
-        """
-        Creates a new mqtt client to be used for the the xcelQuery
-        objects.
-
-        Returns: mqtt.Client object
-        """
-        def on_connect(client, userdata, flags, rc):
-            if rc == 0:
-                logging.info("Connected to MQTT Broker!")
-            else:
-                logging.error("Failed to connect, return code %d\n", rc)
-
-        # Check if a username/PW is setup for the MQTT connection
-        mqtt_username = os.getenv('MQTT_USER')
-        mqtt_password = os.getenv('MQTT_PASSWORD')
-        # If no env variable was set, skip setting creds?
-        client = mqtt.Client()
-        if mqtt_username and mqtt_password:
-            client.username_pw_set(mqtt_username, mqtt_password)
-        client.on_connect = on_connect
-        logging.info(f"MQTT connection details:")
-        logging.info(f"MQTT_ADDRESS: {mqtt_server_address}")
-        logging.info(f"MQTT_PORT: {mqtt_port}")
-        logging.info(f"MQTT_USER: {mqtt_username}")
-        client.connect(mqtt_server_address, mqtt_port)
-        client.loop_start()
-
-        return client
-
-    # Send MQTT config setup to Home assistant
-    def send_configs(self):
-        """
-        Sends the MQTT config to the homeassistant topic for
-        automatic discovery
-
-        Returns: None
-        """
-        for obj in self.query_obj:
-            obj.mqtt_send_config()
-            input()
-
-    def send_mqtt_config(self) -> None:
+    def _send_mqtt_config(self) -> None:
         """
         Sends a discovery payload to homeassistant for the new meter device
 

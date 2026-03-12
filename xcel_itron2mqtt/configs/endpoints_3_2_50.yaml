@@ -1,0 +1,248 @@
+- Instantaneous Demand:
+    url: '/upt/1/mr/1/r'
+    tags:
+      value:
+        entity_type: sensor
+        device_class: power
+        unit_of_measurement: W
+        state_class: measurement
+- Current Summation Received:
+    url: '/upt/1/mr/2/rs/1/r/1'
+    tags:
+      timePeriod:
+        - start:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+      value:
+        entity_type: sensor
+        device_class: energy
+        unit_of_measurement: Wh
+        state_class: total
+- Current Summation Delivered:
+    url: '/upt/1/mr/3/rs/1/r/1'
+    tags:
+      timePeriod:
+        - start:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+      value:
+        entity_type: sensor
+        device_class: energy
+        unit_of_measurement: Wh
+        state_class: total
+- VAh Received:
+    url: '/upt/1/mr/4/r'
+    tags:
+      timePeriod:
+        - start:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+      value:
+        entity_type: sensor
+        device_class: energy
+        unit_of_measurement: Wh
+        state_class: total
+- VAh Delivered:
+    url: '/upt/1/mr/5/r'
+    tags:
+      timePeriod:
+        - start:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+      value:
+        entity_type: sensor
+        device_class: energy
+        unit_of_measurement: Wh
+        state_class: total
+- VARh Received:
+    url: '/upt/1/mr/6/r'
+    tags:
+      timePeriod:
+        - start:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+      value:
+        entity_type: sensor
+        device_class: energy
+        unit_of_measurement: Wh
+        state_class: total
+- VARh Delivered:
+    url: '/upt/1/mr/7/r'
+    tags:
+      timePeriod:
+        - start:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+      value:
+        entity_type: sensor
+        device_class: energy
+        unit_of_measurement: Wh
+        state_class: total
+- TOU 0 WH Received:
+    url: '/upt/1/mr/8/rs/1/r/1'
+    tags:
+      timePeriod:
+        - start:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+      value:
+        entity_type: sensor
+        device_class: energy
+        unit_of_measurement: Wh
+        state_class: total
+- TOU 1 WH Received:
+    url: '/upt/1/mr/8/rs/1/r/2'
+    tags:
+      timePeriod:
+        - start:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+      value:
+        entity_type: sensor
+        device_class: energy
+        unit_of_measurement: Wh
+        state_class: total
+- TOU 2 WH Received:
+    url: '/upt/1/mr/8/rs/1/r/3'
+    tags:
+      timePeriod:
+        - start:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+      value:
+        entity_type: sensor
+        device_class: energy
+        unit_of_measurement: Wh
+        state_class: total
+- TOU 3 WH Received:
+    url: '/upt/1/mr/8/rs/1/r/4'
+    tags:
+      timePeriod:
+        - start:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+      value:
+        entity_type: sensor
+        device_class: energy
+        unit_of_measurement: Wh
+        state_class: total
+- TOU 0 WH Delivered:
+    url: '/upt/1/mr/9/rs/1/r/1'
+    tags:
+      timePeriod:
+        - start:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+      value:
+        entity_type: sensor
+        device_class: energy
+        unit_of_measurement: Wh
+        state_class: total
+- TOU 1 WH Delivered:
+    url: '/upt/1/mr/9/rs/1/r/2'
+    tags:
+      timePeriod:
+        - start:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+      value:
+        entity_type: sensor
+        device_class: energy
+        unit_of_measurement: Wh
+        state_class: total
+- TOU 2 WH Delivered:
+    url: '/upt/1/mr/9/rs/1/r/3'
+    tags:
+      timePeriod:
+        - start:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+      value:
+        entity_type: sensor
+        device_class: energy
+        unit_of_measurement: Wh
+        state_class: total
+- TOU 3 WH Delivered:
+    url: '/upt/1/mr/9/rs/1/r/4'
+    tags:
+      timePeriod:
+        - start:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+      value:
+        entity_type: sensor
+        device_class: energy
+        unit_of_measurement: Wh
+        state_class: total
+- Max Demand Received:
+    url: '/upt/1/mr/17/r'
+    tags:
+      timePeriod:
+        - start:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+      value:
+        entity_type: sensor
+        device_class: power
+        unit_of_measurement: W
+        state_class: measurement
+- Max Demand Delivered:
+    url: '/upt/1/mr/18/r'
+    tags:
+      timePeriod:
+        - start:
+            entity_type: sensor
+            device_class: timestamp
+            value_template: '{{ as_datetime( value ) }}'
+      value:
+        entity_type: sensor
+        device_class: power
+        unit_of_measurement: W
+        state_class: measurement
+- Power Factor:
+    url: '/upt/1/mr/19/r'
+    tags:
+      value:
+        entity_type: sensor
+        device_class: power_factor
+        value_template: '{{ float( value ) * 0.001 | round( 3 )}}'
+        state_class: measurement
+- Power Factor PhaseA:
+    url: '/upt/1/mr/20/r'
+    tags:
+      value:
+        entity_type: sensor
+        device_class: power_factor
+        value_template: '{{ float( value ) * 0.001 | round( 3 )}}'
+        state_class: measurement
+- Power Factor PhaseB:
+    url: '/upt/1/mr/21/r'
+    tags:
+      value:
+        entity_type: sensor
+        device_class: power_factor
+        value_template: '{{ float( value ) * 0.001 | round( 3 )}}'
+        state_class: measurement
+- Power Factor PhaseC:
+    url: '/upt/1/mr/22/r'
+    tags:
+      value:
+        entity_type: sensor
+        device_class: power_factor
+        value_template: '{{ float( value ) * 0.001 | round( 3 )}}'
+        state_class: measurement

@@ -28,7 +28,7 @@ class XcelListener(ServiceListener):
 def look_for_creds() -> tuple:
     """
     Defaults to extracting the cert and key path from environment variables,
-    but if those don't exist it tries to find the hidden credentials files 
+    but if those don't exist it tries to find the hidden credentials files
     in the default folder of /certs.
 
     Returns: tuple of paths for cert and key files
@@ -69,7 +69,7 @@ def mDNS_search_for_meter() -> str | int:
     port = listener.info.port
     # Close out our mDNS discovery device
     zeroconf.close()
-  
+
     return ip_address, port
 
 
@@ -81,7 +81,6 @@ if __name__ == '__main__':
         ip_address, port_num = mDNS_search_for_meter()
     creds = look_for_creds()
     meter = xcelMeter(INTEGRATION_NAME, ip_address, port_num, creds)
-    meter.setup()
 
     if meter.initalized:
         # The run method controls all the looping, querying, and mqtt sending
