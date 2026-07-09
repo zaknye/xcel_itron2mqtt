@@ -43,6 +43,7 @@ The following are options that may be passed into the container in the form of e
 | -e MQTT_SERVER | IP address of the MQTT server to communicate with | NO |
 | -e MQTT_PORT | Port # of the MQTT server to communicate with, **Default: 1883**| yes |
 | -e MQTT_TOPIC_PREFIX | Prefix of MQTT topic set in Home Assistant, **Default: homeassistant/** | yes |
+| -e DEVICE_NAME | Name of the Home Assistant device, also used as the prefix of every entity `unique_id` and MQTT topic. Set a distinct value per meter to run **multiple meters** against one broker/HA instance. **Default: Xcel Itron 5** | yes |
 | -e METER_IP | IP address of the itron meter. Useful for those that run iot devices on other vlans | yes |
 | -e METER_PORT | Port number of the meter, must be set if `METER_IP` is set. **Default: 8081**| yes |
 | -e MQTT_USER | Username to authenticate to the MQTT server | yes |
@@ -50,6 +51,32 @@ The following are options that may be passed into the container in the form of e
 | -e CERT_PATH | Path to cert file (within the container) if different than the default | yes |
 | -e KEY_PATH | Path to key file (within the container) if different than the default | yes |
 | -e LOGLEVEL | Set the log level for logging output (default is INFO) | yes |
+
+### Running multiple meters
+If you have more than one Xcel meter, run one container per meter and give each a
+distinct `DEVICE_NAME`. The name is baked into every entity's `unique_id` and MQTT
+topic, so distinct names keep the two meters from overwriting each other's
+discovery configs and readings in Home Assistant:
+
+```
+xcel_itron2mqtt_meter_a:
+  image: "ghcr.io/zaknye/xcel_itron2mqtt:latest"
+  environment:
+    - MQTT_SERVER=127.0.0.1
+    - METER_IP=<meter A IP>
+    - DEVICE_NAME=Xcel Itron 5        # or leave unset to keep the default
+xcel_itron2mqtt_meter_b:
+  image: "ghcr.io/zaknye/xcel_itron2mqtt:latest"
+  environment:
+    - MQTT_SERVER=127.0.0.1
+    - METER_IP=<meter B IP>
+    - DEVICE_NAME=Xcel Itron 5 Garage
+```
+
+Leaving `DEVICE_NAME` unset (or set to the default `Xcel Itron 5`) reproduces the
+exact `unique_id`s and topics used by previous releases, so existing single-meter
+setups are unaffected.
+
 ## Compose (best way)
 Docker compose is the easiest way to integrate this repo in with your other services. Below is an example of how to use compose to integrate with a mosquitto MQTT broker container.
 ### Example

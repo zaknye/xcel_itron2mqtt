@@ -14,6 +14,13 @@ logger = logging.getLogger(__name__)
 # IEEE 2030.5 spec reference: https://zepben.github.io/evolve/docs/2030-5/
 IEEE_PREFIX = '{urn:ieee:std:2030.5:ns}'
 
+# Default device/integration name. When the configured name matches this,
+# unique_ids and MQTT topics are byte-for-byte identical to previous
+# single-meter releases. Setting a different name (via the DEVICE_NAME env
+# var) namespaces both, so two meters can be published to the same broker /
+# Home Assistant instance without clobbering each other.
+DEFAULT_DEVICE_NAME = "Xcel Itron 5"
+
 class xcelEndpoint():
     """
     Class wrapper for all readings associated with the Xcel meter.
@@ -103,14 +110,25 @@ class xcelEndpoint():
         payload = deepcopy(details)
         mqtt_friendly_name = self.name.replace(" ", "_")
         entity_type = payload.pop('entity_type')
-        payload["state_topic"] = f'{self._mqtt_topic_prefix}/{entity_type}/{mqtt_friendly_name}/{sensor_name}/state'
+        # Namespace the discovery/state topic path by the device name so that
+        # two meters (each configured with a distinct DEVICE_NAME) publish to
+        # different topics and don't overwrite each other's retained configs.
+        # With the default name this is a no-op, preserving the exact legacy
+        # topic layout for existing single-meter installs.
+        device_name = self.device_info['device']['name']
+        if device_name == DEFAULT_DEVICE_NAME:
+            node_id = mqtt_friendly_name
+        else:
+            device_slug = device_name.replace(" ", "_")
+            node_id = f'{device_slug}_{mqtt_friendly_name}'
+        payload["state_topic"] = f'{self._mqtt_topic_prefix}/{entity_type}/{node_id}/{sensor_name}/state'
         payload['name'] = f'{self.name} {sensor_name}'
         # Mouthful
         # Unique ID becomes the device name + class name + sensor name, all lower case, all underscores instead of spaces
-        payload['unique_id'] = f"{self.device_info['device']['name']}_{self.name}_{sensor_name}".lower().replace(' ', '_')
+        payload['unique_id'] = f"{device_name}_{self.name}_{sensor_name}".lower().replace(' ', '_')
         payload.update(self.device_info)
         # MQTT Topics don't like spaces
-        mqtt_topic = f'{self._mqtt_topic_prefix}/{entity_type}/{mqtt_friendly_name}/{sensor_name}/config'
+        mqtt_topic = f'{self._mqtt_topic_prefix}/{entity_type}/{node_id}/{sensor_name}/config'
         # Capture the state topic the sensor is associated with for later use
         self._sensor_state_topics[sensor_name] = payload['state_topic']
         payload = json.dumps(payload)
