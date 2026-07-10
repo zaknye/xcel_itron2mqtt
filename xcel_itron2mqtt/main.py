@@ -3,9 +3,13 @@ import logging
 from time import sleep
 from pathlib import Path
 from xcelMeter import xcelMeter
+from xcelEndpoint import DEFAULT_DEVICE_NAME
 from zeroconf import ServiceBrowser, ServiceListener, Zeroconf
 
-INTEGRATION_NAME = "Xcel Itron 5"
+# Name used for the Home Assistant device and as the prefix for every entity's
+# unique_id and MQTT topic. Override with DEVICE_NAME to run more than one meter
+# against the same broker / HA instance (each meter needs a distinct name).
+INTEGRATION_NAME = os.environ.get('DEVICE_NAME', DEFAULT_DEVICE_NAME)
 
 LOGLEVEL = os.environ.get('LOGLEVEL', 'INFO').upper()
 logging.basicConfig(format='%(levelname)s: %(message)s', level=LOGLEVEL)
