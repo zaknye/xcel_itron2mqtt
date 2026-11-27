@@ -131,7 +131,7 @@ class xcelEndpoint():
                     sensor_name = f'{k}{name}'
                     mqtt_topic, payload = self._create_config(sensor_name, details)
                     # Send MQTT payload
-                    self._mqtt_publish(mqtt_topic, str(payload))
+                    self._mqtt_publish(mqtt_topic, str(payload), retain=True)
             else:
                 mqtt_topic, payload = self._create_config(k, v)
                 self._mqtt_publish(mqtt_topic, str(payload), retain=True)
